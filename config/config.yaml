@@ -1,0 +1,13 @@
+app:
+    port: 8080
+    mode: desktop
+    adminPasswordHash: ""
+feature:
+    enableScore: true
+    enableAnimation: true
+    animationDuration: 5
+    animationStyle: slotMachine
+random:
+    mode: fair
+    avoidRepeatWindow: 5
+    weightByScore: false
