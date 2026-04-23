@@ -1,8 +1,13 @@
+//go:build !server
+
 package main
 
 import (
 	"embed"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
 
 	"RollCall/internal/app"
 	"RollCall/internal/config"
@@ -18,16 +23,38 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+func appDataDir() string {
+	if runtime.GOOS == "darwin" {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, "Library", "Application Support", "RollCall")
+	}
+	if runtime.GOOS == "windows" {
+		appData := os.Getenv("APPDATA")
+		if appData != "" {
+			return filepath.Join(appData, "RollCall")
+		}
+	}
+	// Linux / fallback
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".rollcall")
+}
+
 func main() {
-	cfg, err := config.Load("./config")
+	dataDir := appDataDir()
+	os.MkdirAll(dataDir, 0755)
+
+	configDir := filepath.Join(dataDir, "config")
+	dbDir := filepath.Join(dataDir, "data")
+
+	cfg, err := config.Load(configDir)
 	if err != nil {
 		log.Fatal("加载配置失败:", err)
 	}
 	_ = cfg
 
-	config.Watch("./config")
+	config.Watch(configDir)
 
-	db, err := database.Open("./data")
+	db, err := database.Open(dbDir)
 	if err != nil {
 		log.Fatal("打开数据库失败:", err)
 	}
