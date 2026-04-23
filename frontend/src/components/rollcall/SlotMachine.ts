@@ -5,11 +5,17 @@ interface NameItem {
 
 interface Slot {
   names: NameItem[]
-  startOffset: number
-  targetOffset: number
-  totalDuration: number
-  startTime: number
+  offset: number       // current absolute offset, always updated per-frame
+  velocity: number     // current velocity in px/frame
+  targetIdx: number
   stopped: boolean
+  // For the decel curve
+  curveActive: boolean
+  curveStartOffset: number
+  curveTargetOffset: number
+  curveStartTime: number
+  curveDuration: number
+  curveEntrySpeed: number // px/ms at curve start
 }
 
 const COLORS = [
@@ -19,6 +25,9 @@ const COLORS = [
 ]
 
 const ITEM_H = 56
+const IDLE_VEL = 0.5 // px per frame in idle
+const PEAK_VEL = 22  // px per frame at peak speed
+const ACCEL = 0.15   // px/frame^2 acceleration
 
 type Phase = 'idle' | 'spinning' | 'display'
 
@@ -33,9 +42,10 @@ export class SlotMachineEngine {
   private slots: Slot[] = []
   private displayCount = 1
   private onComplete?: (selectedIds: number[]) => void
-  private idleSlots: { names: NameItem[]; offset: number }[] = []
   private stoppedCount = 0
   private selectedIds: number[] = []
+  private rollDuration = 5000
+  private rollStartTime = 0
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -55,18 +65,28 @@ export class SlotMachineEngine {
 
   setNames(names: NameItem[]) {
     this.allItems = names
-    this.rebuildIdleSlots()
+    this.rebuildSlots()
   }
 
   setDisplayCount(n: number) {
+    if (n === this.displayCount) return
     this.displayCount = n
-    if (this.phase === 'idle') this.rebuildIdleSlots()
+    if (this.phase === 'idle') this.rebuildSlots()
   }
 
-  private rebuildIdleSlots() {
-    this.idleSlots = Array.from({ length: this.displayCount }, () => ({
+  private rebuildSlots() {
+    this.slots = Array.from({ length: this.displayCount }, () => ({
       names: [...this.allItems].sort(() => Math.random() - 0.5),
       offset: Math.random() * this.allItems.length * ITEM_H,
+      velocity: IDLE_VEL,
+      targetIdx: -1,
+      stopped: false,
+      curveActive: false,
+      curveStartOffset: 0,
+      curveTargetOffset: 0,
+      curveStartTime: 0,
+      curveDuration: 0,
+      curveEntrySpeed: 0,
     }))
   }
 
@@ -84,48 +104,56 @@ export class SlotMachineEngine {
 
   startRolling(selectedIds: number[], durationMs: number, onComplete: (ids: number[]) => void) {
     this.selectedIds = selectedIds
-    this.displayCount = selectedIds.length
-    this.phase = 'spinning'
-    this.stoppedCount = 0
     this.onComplete = onComplete
+    this.rollDuration = durationMs
+    this.rollStartTime = performance.now()
+    this.stoppedCount = 0
+    this.phase = 'spinning'
 
-    const now = performance.now()
-    const count = selectedIds.length
-    const stagger = Math.min(800, 3000 / count)
-
-    this.slots = selectedIds.map((winnerId, i) => {
-      const shuffled = [...this.allItems].sort(() => Math.random() - 0.5)
-      const startOffset = Math.random() * shuffled.length * ITEM_H
-      const targetIdx = shuffled.findIndex((n) => n.id === winnerId)
-
-      const totalLen = shuffled.length * ITEM_H
-      const currentPos = ((startOffset % totalLen) + totalLen) % totalLen
-      let targetPos = targetIdx * ITEM_H
-      if (targetPos <= currentPos) targetPos += totalLen
-      // More spins for later columns — gives the staggered stop feel
-      const extraSpins = (4 + i * 2) * totalLen
-      const targetOffset = startOffset + (targetPos - currentPos) + extraSpins
-
-      // Each column's total animation time: base duration + stagger
-      const totalDuration = durationMs + i * stagger
-
-      return {
-        names: shuffled,
-        startOffset,
-        targetOffset,
-        totalDuration,
-        startTime: now,
+    // Ensure enough slots exist
+    while (this.slots.length < selectedIds.length) {
+      this.slots.push({
+        names: [...this.allItems].sort(() => Math.random() - 0.5),
+        offset: Math.random() * this.allItems.length * ITEM_H,
+        velocity: IDLE_VEL,
+        targetIdx: -1,
         stopped: false,
+        curveActive: false,
+        curveStartOffset: 0,
+        curveTargetOffset: 0,
+        curveStartTime: 0,
+        curveDuration: 0,
+        curveEntrySpeed: 0,
+      })
+    }
+    // Trim excess
+    this.slots.length = selectedIds.length
+    this.displayCount = selectedIds.length
+
+    // Assign targets — keep existing names and offset (no jump!)
+    for (let i = 0; i < selectedIds.length; i++) {
+      const slot = this.slots[i]
+      slot.stopped = false
+      slot.curveActive = false
+      slot.targetIdx = slot.names.findIndex((n) => n.id === selectedIds[i])
+      if (slot.targetIdx < 0) {
+        const item = this.allItems.find((n) => n.id === selectedIds[i])
+        if (item) { slot.names.push(item); slot.targetIdx = slot.names.length - 1 }
       }
-    })
+    }
   }
 
   reset() {
     this.phase = 'idle'
-    this.slots = []
     this.stoppedCount = 0
     this.selectedIds = []
-    this.rebuildIdleSlots()
+    for (const slot of this.slots) {
+      slot.velocity = IDLE_VEL
+      slot.stopped = false
+      slot.curveActive = false
+      slot.targetIdx = -1
+    }
+    this.rebuildSlots()
   }
 
   private loop() {
@@ -135,47 +163,77 @@ export class SlotMachineEngine {
     this.animationId = requestAnimationFrame(() => this.loop())
   }
 
-  // Attempt 1: single smoothstep S-curve per slot
-  // position(t) = startOffset + (targetOffset - startOffset) * S(t)
-  // S(t) = 6t^5 - 15t^4 + 10t^3  (Perlin smootherstep — zero velocity at both ends)
-  private smootherstep(t: number): number {
-    return t * t * t * (t * (t * 6 - 15) + 10)
-  }
-
   private update() {
     if (this.phase === 'idle') {
-      for (const s of this.idleSlots) s.offset += 0.5
+      for (const slot of this.slots) {
+        slot.offset += IDLE_VEL
+      }
       return
     }
 
     if (this.phase === 'spinning') {
       const now = performance.now()
-      for (const slot of this.slots) {
+      const elapsed = now - this.rollStartTime
+      const count = this.slots.length
+      const stagger = Math.min(800, 3000 / count)
+
+      for (let i = 0; i < this.slots.length; i++) {
+        const slot = this.slots[i]
         if (slot.stopped) continue
-        const elapsed = now - slot.startTime
-        const t = Math.min(elapsed / slot.totalDuration, 1)
-        // smootherstep gives: start slow → fast in middle → slow at end
-        // No discontinuity, no two-phase jump
-        slot.startOffset // we store current offset directly via the curve
-        if (t >= 1) {
-          slot.stopped = true
-          this.stoppedCount++
-          if (this.stoppedCount >= this.slots.length) {
-            this.phase = 'display'
-            setTimeout(() => this.onComplete?.(this.selectedIds), 400)
+
+        if (slot.curveActive) {
+          // Decel curve phase: cubic from curveStartOffset to curveTargetOffset
+          const ct = Math.min((now - slot.curveStartTime) / slot.curveDuration, 1)
+          const totalDist = slot.curveTargetOffset - slot.curveStartOffset
+          const v0n = (slot.curveEntrySpeed * slot.curveDuration) / totalDist
+          const a = v0n - 2, b = 3 - 2 * v0n, c = v0n
+          const s = a * ct * ct * ct + b * ct * ct + c * ct
+          slot.offset = slot.curveStartOffset + totalDist * s
+
+          if (ct >= 1) {
+            slot.offset = slot.curveTargetOffset
+            slot.stopped = true
+            slot.velocity = 0
+            this.stoppedCount++
+            if (this.stoppedCount >= this.slots.length) {
+              this.phase = 'display'
+              setTimeout(() => this.onComplete?.(this.selectedIds), 400)
+            }
           }
+          continue
         }
+
+        // Should this slot start its decel curve?
+        const slotDecelTime = this.rollDuration + i * stagger
+        if (elapsed >= slotDecelTime) {
+          // Activate decel curve from current position/speed
+          slot.curveActive = true
+          slot.curveStartOffset = slot.offset
+          slot.curveStartTime = now
+          slot.curveEntrySpeed = slot.velocity / 16.67 // convert px/frame to px/ms
+
+          // Calculate target offset: land on targetIdx
+          const totalLen = slot.names.length * ITEM_H
+          const currentPos = ((slot.offset % totalLen) + totalLen) % totalLen
+          let targetPos = slot.targetIdx * ITEM_H
+          if (targetPos <= currentPos) targetPos += totalLen
+          const extraSpins = (2 + i) * totalLen
+          slot.curveTargetOffset = slot.offset + (targetPos - currentPos) + extraSpins
+
+          // Duration proportional to distance, min 1.5s
+          const dist = slot.curveTargetOffset - slot.curveStartOffset
+          slot.curveDuration = Math.max(1500, dist / (slot.velocity / 16.67) * 0.4)
+          continue
+        }
+
+        // Free-running phase: accelerate up to peak, then hold
+        if (slot.velocity < PEAK_VEL) {
+          slot.velocity = Math.min(PEAK_VEL, slot.velocity + ACCEL)
+        }
+        // Add slight random wobble for realism
+        slot.offset += slot.velocity + (Math.random() - 0.5) * 0.3
       }
     }
-  }
-
-  private getSlotOffset(slot: Slot): number {
-    if (slot.stopped) return slot.targetOffset
-    const now = performance.now()
-    const elapsed = now - slot.startTime
-    const t = Math.min(elapsed / slot.totalDuration, 1)
-    const s = this.smootherstep(t)
-    return slot.startOffset + (slot.targetOffset - slot.startOffset) * s
   }
 
   private draw() {
@@ -184,14 +242,11 @@ export class SlotMachineEngine {
     const ctx = this.ctx
     ctx.clearRect(0, 0, w, h)
 
-    if (this.phase === 'idle') {
-      this.drawIdleState(w, h)
-      return
-    }
-
     const count = this.slots.length
     const gap = 12
-    const slotW = Math.min(180, (w - 60 - (count - 1) * gap) / count)
+    const slotW = count === 1 && this.phase === 'idle'
+      ? Math.min(180, w * 0.35)
+      : Math.min(180, (w - 60 - (count - 1) * gap) / count)
     const totalW = count * slotW + (count - 1) * gap
     const startX = (w - totalW) / 2
     const centerY = h / 2
@@ -199,29 +254,8 @@ export class SlotMachineEngine {
 
     for (let si = 0; si < this.slots.length; si++) {
       const slot = this.slots[si]
-      const offset = this.getSlotOffset(slot)
       const sx = startX + si * (slotW + gap)
-      this.drawSlotColumn(slot.names, offset, slot.stopped, si, sx, slotW, centerY, h, visibleItems)
-    }
-    this.drawCenterHighlight(startX, totalW, centerY)
-  }
-
-  private drawIdleState(w: number, h: number) {
-    const count = this.idleSlots.length
-    const centerY = h / 2
-    const visibleItems = Math.ceil(h / ITEM_H) + 4
-    const gap = 12
-    const slotW = count === 1
-      ? Math.min(180, w * 0.35)
-      : Math.min(180, (w - 60 - (count - 1) * gap) / count)
-    const totalW = count * slotW + (count - 1) * gap
-    const startX = (w - totalW) / 2
-
-    for (let si = 0; si < this.idleSlots.length; si++) {
-      const slot = this.idleSlots[si]
-      const sx = startX + si * (slotW + gap)
-      const items = slot.names.length > 0 ? slot.names : this.allItems
-      this.drawSlotColumn(items, slot.offset, false, si, sx, slotW, centerY, h, visibleItems)
+      this.drawSlotColumn(slot.names, slot.offset, slot.stopped, si, sx, slotW, centerY, h, visibleItems)
     }
     this.drawCenterHighlight(startX, totalW, centerY)
   }
