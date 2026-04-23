@@ -1,7 +1,7 @@
 app:
     port: 8080
     mode: desktop
-    adminPasswordHash: $2a$10$lTKKxm1YzmOUNBZCQuhHU..SGnYJzPv/Z5h2KhhLxAbSI5qsYBKSu
+    adminPasswordHash: ""
 feature:
     enableScore: true
     enableAnimation: true
