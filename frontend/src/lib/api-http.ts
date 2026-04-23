@@ -45,10 +45,8 @@ export const studentApiHttp = {
         if (!file) { resolve(null); return }
         const form = new FormData()
         form.append('file', file)
-        // Upload and parse, return preview data
-        // For server mode, we parse on server and return students
         try {
-          const res = await fetch(`${BASE}/classes/0/students/import`, { method: 'POST', body: form })
+          const res = await fetch(`${BASE}/students/preview-import`, { method: 'POST', body: form })
           if (!res.ok) { resolve(null); return }
           const data = await res.json()
           resolve(data)

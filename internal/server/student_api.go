@@ -99,6 +99,38 @@ func (a *StudentAPI) Search(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, list)
 }
 
+func (a *StudentAPI) PreviewImport(w http.ResponseWriter, r *http.Request) {
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		jsonErr(w, 400, "file is required")
+		return
+	}
+	defer file.Close()
+
+	tmp, err := os.CreateTemp("", "preview-*"+filepath.Ext(header.Filename))
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	io.Copy(tmp, file)
+	tmp.Close()
+
+	var students []model.Student
+	lower := strings.ToLower(header.Filename)
+	if strings.HasSuffix(lower, ".csv") {
+		students, err = a.svc.ParseCSV(tmp.Name())
+	} else {
+		students, err = a.svc.ParseExcel(tmp.Name())
+	}
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	jsonOK(w, students)
+}
+
 func (a *StudentAPI) Import(w http.ResponseWriter, r *http.Request) {
 	classID, err := pathInt64(r, "classID")
 	if err != nil {
