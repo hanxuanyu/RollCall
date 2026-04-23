@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"math/rand/v2"
 
@@ -43,7 +44,29 @@ func (s *RollCallService) DoRollCall(classID int64, count int) ([]model.Student,
 	recentCount := countOccurrences(recentIDs)
 
 	candidates := s.buildCandidates(students, recentCount, cfg)
+
+	// Debug: log weights and probabilities
+	totalWeight := 0.0
+	for _, c := range candidates {
+		totalWeight += c.weight
+	}
+	log.Printf("[RollCall] mode=%s, students=%d, count=%d, avoidWindow=%d",
+		cfg.Random.Mode, len(students), count, cfg.Random.AvoidRepeatWindow)
+	for _, c := range candidates {
+		prob := 0.0
+		if totalWeight > 0 {
+			prob = c.weight / totalWeight * 100
+		}
+		log.Printf("[RollCall]   %s (id=%d, score=%d): weight=%.4f, prob=%.2f%%",
+			c.student.Name, c.student.ID, c.student.Score, c.weight, prob)
+	}
+
 	selected := weightedSelectN(candidates, count)
+
+	log.Printf("[RollCall] selected:")
+	for _, stu := range selected {
+		log.Printf("[RollCall]   -> %s (id=%d)", stu.Name, stu.ID)
+	}
 
 	return selected, nil
 }
@@ -53,6 +76,57 @@ func (s *RollCallService) GetLogs(classID int64, limit int) ([]model.RollCallLog
 		limit = 20
 	}
 	return s.rollcallRepo.ListByClassID(classID, limit)
+}
+
+type StudentWeightInfo struct {
+	ID        int64   `json:"id"`
+	Name      string  `json:"name"`
+	StudentNo string  `json:"student_no"`
+	Score     int     `json:"score"`
+	Weight    float64 `json:"weight"`
+	Prob      float64 `json:"prob"`
+}
+
+func (s *RollCallService) GetWeightInfo(classID int64) ([]StudentWeightInfo, error) {
+	cfg := config.Get()
+
+	students, err := s.studentRepo.ListActiveByClassID(classID)
+	if err != nil {
+		return nil, err
+	}
+	if len(students) == 0 {
+		return nil, nil
+	}
+
+	recentIDs, _ := s.rollcallRepo.GetRecentPickedStudentIDs(classID, cfg.Random.AvoidRepeatWindow)
+	recentCount := countOccurrences(recentIDs)
+	candidates := s.buildCandidates(students, recentCount, cfg)
+
+	totalWeight := 0.0
+	for _, c := range candidates {
+		totalWeight += c.weight
+	}
+
+	var result []StudentWeightInfo
+	for _, c := range candidates {
+		prob := 0.0
+		if totalWeight > 0 {
+			prob = c.weight / totalWeight * 100
+		}
+		result = append(result, StudentWeightInfo{
+			ID:        c.student.ID,
+			Name:      c.student.Name,
+			StudentNo: c.student.StudentNo,
+			Score:     c.student.Score,
+			Weight:    math.Round(c.weight*10000) / 10000,
+			Prob:      math.Round(prob*100) / 100,
+		})
+	}
+	return result, nil
+}
+
+func (s *RollCallService) ClearLogs(classID int64) error {
+	return s.rollcallRepo.DeleteByClassID(classID)
 }
 
 func (s *RollCallService) ReportResult(classID int64, studentIDs []int64) ([]model.Student, error) {
@@ -78,6 +152,13 @@ func (s *RollCallService) ReportResult(classID int64, studentIDs []int64) ([]mod
 }
 
 func (s *RollCallService) buildCandidates(students []model.Student, recentCount map[int64]int, cfg *config.Config) []candidate {
+	maxScore := 0
+	for _, st := range students {
+		if st.Score > maxScore {
+			maxScore = st.Score
+		}
+	}
+
 	var candidates []candidate
 	for _, stu := range students {
 		w := 1.0
@@ -89,10 +170,7 @@ func (s *RollCallService) buildCandidates(students []model.Student, recentCount 
 				w = 1.0 / float64(1+cnt)
 			}
 		case "weighted":
-			base := float64(stu.Score + 100)
-			if base < 1 {
-				base = 1
-			}
+			base := float64(maxScore-stu.Score) + 10
 			w = base
 			if cnt, ok := recentCount[stu.ID]; ok {
 				w = w / float64(1+cnt)

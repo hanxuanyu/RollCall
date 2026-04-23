@@ -13,7 +13,7 @@ export const classApi = {
 
 export const studentApi = {
   list: (classID: number) => App.GetStudents(classID),
-  create: (classID: number, name: string, gender: string) => App.CreateStudent(classID, name, gender),
+  create: (classID: number, name: string, studentNo: string, gender: string) => App.CreateStudent(classID, name, studentNo, gender),
   update: (stu: Student) => App.UpdateStudent(stu as any),
   delete: (id: number) => App.DeleteStudent(id),
   search: (classID: number, q: string) => App.SearchStudents(classID, q),
@@ -26,6 +26,8 @@ export const rollcallApi = {
   doRollCall: (classID: number, count: number) => App.DoRollCall(classID, count),
   reportResult: (classID: number, studentIDs: number[]) => App.ReportRollCallResult(classID, studentIDs),
   getLogs: (classID: number, limit: number) => App.GetRollCallLogs(classID, limit),
+  clearLogs: (classID: number) => App.ClearRollCallLogs(classID),
+  getWeightInfo: (classID: number) => App.GetWeightInfo(classID),
 }
 
 export const scoreApi = {

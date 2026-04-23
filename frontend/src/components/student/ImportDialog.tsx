@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { studentApi } from '@/lib/api'
 import type { Student } from '@/types'
-import { Trash2, Plus } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
@@ -19,20 +23,30 @@ import {
 interface Props {
   classID: number
   open: boolean
+  existingStudents: Student[]
   onClose: () => void
   onSuccess: () => void
 }
 
 interface PreviewRow {
   name: string
+  student_no: string
   gender: string
   score: number
 }
 
-export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
+interface DuplicateInfo {
+  row: PreviewRow
+  existing: Student
+}
+
+export function ImportDialog({ classID, open, existingStudents, onClose, onSuccess }: Props) {
   const [rows, setRows] = useState<PreviewRow[]>([])
   const [loading, setLoading] = useState(false)
   const [parsed, setParsed] = useState(false)
+  const [duplicates, setDuplicates] = useState<DuplicateInfo[]>([])
+  const [dupDialogOpen, setDupDialogOpen] = useState(false)
+  const [pendingImport, setPendingImport] = useState<PreviewRow[]>([])
 
   const handleSelectFile = async () => {
     try {
@@ -41,7 +55,7 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
         toast.info('文件中没有有效数据')
         return
       }
-      setRows(data.map((s: Student) => ({ name: s.name, gender: s.gender || '', score: s.score || 0 })))
+      setRows(data.map((s: Student) => ({ name: s.name, student_no: s.student_no || '', gender: s.gender || '', score: s.score || 0 })))
       setParsed(true)
     } catch (e: any) {
       toast.error(e?.message || '解析文件失败')
@@ -57,7 +71,7 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
   }
 
   const handleAddRow = () => {
-    setRows((prev) => [...prev, { name: '', gender: '', score: 0 }])
+    setRows((prev) => [...prev, { name: '', student_no: '', gender: '', score: 0 }])
   }
 
   const validCount = rows.filter((r) => r.name.trim()).length
@@ -68,10 +82,37 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
       toast.error('没有有效的学生数据')
       return
     }
+
+    const dups: DuplicateInfo[] = []
+    const nonDups: PreviewRow[] = []
+    for (const r of valid) {
+      const existing = existingStudents.find((s) => s.name === r.name.trim() && s.student_no === r.student_no.trim())
+      if (existing) {
+        dups.push({ row: r, existing })
+      } else {
+        nonDups.push(r)
+      }
+    }
+
+    if (dups.length > 0) {
+      setDuplicates(dups)
+      setPendingImport(nonDups)
+      setDupDialogOpen(true)
+      return
+    }
+
+    await doImport(valid)
+  }
+
+  const doImport = async (toImport: PreviewRow[]) => {
+    if (toImport.length === 0) {
+      toast.info('没有需要导入的数据')
+      return
+    }
     setLoading(true)
     try {
-      const students = valid.map((r) => ({
-        id: 0, class_id: classID, name: r.name.trim(), gender: r.gender,
+      const students = toImport.map((r) => ({
+        id: 0, class_id: classID, name: r.name.trim(), student_no: r.student_no.trim(), gender: r.gender,
         score: r.score, status: 'active', created_at: '',
       }))
       const count = await studentApi.confirmImport(classID, students)
@@ -85,19 +126,44 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
     }
   }
 
+  const handleDupSkip = async () => {
+    setDupDialogOpen(false)
+    await doImport(pendingImport)
+  }
+
+  const handleDupOverwrite = async () => {
+    setDupDialogOpen(false)
+    const all = [...pendingImport, ...duplicates.map((d) => d.row)]
+    // Update existing students with new data
+    for (const dup of duplicates) {
+      try {
+        await studentApi.update({
+          ...dup.existing,
+          gender: dup.row.gender || dup.existing.gender,
+          score: dup.row.score,
+          student_no: dup.row.student_no.trim(),
+        })
+      } catch { /* ignore */ }
+    }
+    await doImport(pendingImport)
+  }
+
   const handleClose = () => {
     setRows([])
     setParsed(false)
+    setDuplicates([])
+    setPendingImport([])
     onClose()
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>导入学生</DialogTitle>
           <DialogDescription>
-            支持 CSV、Excel（.xlsx）格式，列顺序：姓名、性别（可选）、积分（可选）
+            支持 CSV、Excel（.xlsx）格式，列顺序：姓名、学号（可选）、性别（可选）、积分（可选）
           </DialogDescription>
         </DialogHeader>
 
@@ -125,6 +191,7 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
                   <TableRow>
                     <TableHead className="w-10">#</TableHead>
                     <TableHead>姓名</TableHead>
+                    <TableHead className="w-28">学号</TableHead>
                     <TableHead className="w-24">性别</TableHead>
                     <TableHead className="w-20">积分</TableHead>
                     <TableHead className="w-12"></TableHead>
@@ -140,6 +207,14 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
                           onChange={(e) => handleUpdateRow(i, 'name', e.target.value)}
                           className="h-8 text-sm"
                           placeholder="姓名"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={row.student_no}
+                          onChange={(e) => handleUpdateRow(i, 'student_no', e.target.value)}
+                          className="h-8 text-sm"
+                          placeholder="学号"
                         />
                       </TableCell>
                       <TableCell>
@@ -190,5 +265,46 @@ export function ImportDialog({ classID, open, onClose, onSuccess }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={dupDialogOpen} onOpenChange={setDupDialogOpen}>
+      <AlertDialogContent className="!max-w-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" /> 发现重复学生
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            以下 {duplicates.length} 名学生已存在（学号+姓名匹配），请选择处理方式：
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="max-h-48 overflow-auto rounded-md border text-sm">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>姓名</TableHead>
+                <TableHead>学号</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {duplicates.map((d, i) => (
+                <TableRow key={i}>
+                  <TableCell>{d.row.name}</TableCell>
+                  <TableCell>{d.row.student_no || '-'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        <AlertDialogFooter className="flex-wrap">
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction variant="outline" onClick={handleDupSkip}>
+            跳过重复 ({pendingImport.length})
+          </AlertDialogAction>
+          <AlertDialogAction onClick={handleDupOverwrite}>
+            覆盖并导入全部
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }

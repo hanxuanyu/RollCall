@@ -41,6 +41,11 @@ func (r *RollCallRepo) ListByClassID(classID int64, limit int) ([]model.RollCall
 	return list, nil
 }
 
+func (r *RollCallRepo) DeleteByClassID(classID int64) error {
+	_, err := r.db.Exec("DELETE FROM rollcall_logs WHERE class_id = ?", classID)
+	return err
+}
+
 func (r *RollCallRepo) GetRecentPickedStudentIDs(classID int64, windowSize int) ([]int64, error) {
 	rows, err := r.db.Query(
 		"SELECT result FROM rollcall_logs WHERE class_id = ? ORDER BY created_at DESC LIMIT ?",

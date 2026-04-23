@@ -154,6 +154,7 @@ export namespace model {
 	    id: number;
 	    class_id: number;
 	    name: string;
+	    student_no: string;
 	    gender: string;
 	    score: number;
 	    status: string;
@@ -168,10 +169,38 @@ export namespace model {
 	        this.id = source["id"];
 	        this.class_id = source["class_id"];
 	        this.name = source["name"];
+	        this.student_no = source["student_no"];
 	        this.gender = source["gender"];
 	        this.score = source["score"];
 	        this.status = source["status"];
 	        this.created_at = source["created_at"];
+	    }
+	}
+
+}
+
+export namespace service {
+	
+	export class StudentWeightInfo {
+	    id: number;
+	    name: string;
+	    student_no: string;
+	    score: number;
+	    weight: number;
+	    prob: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new StudentWeightInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.student_no = source["student_no"];
+	        this.score = source["score"];
+	        this.weight = source["weight"];
+	        this.prob = source["prob"];
 	    }
 	}
 

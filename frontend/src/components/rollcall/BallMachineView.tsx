@@ -1,53 +1,59 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useImperativeHandle, forwardRef } from 'react'
 import { SlotMachineEngine } from './SlotMachine'
 
+export interface AnimationViewHandle {
+  engine: () => SlotMachineEngine | null
+}
+
 interface Props {
-  students: { id: number; name: string }[]
-  rolling: boolean
-  selectedIds: number[]
+  students: { id: number; name: string; student_no?: string }[]
   count: number
-  durationMs: number
-  onReady?: (engine: SlotMachineEngine) => void
   onComplete?: (selectedIds: number[]) => void
 }
 
-export function AnimationView({ students, rolling, selectedIds, count, durationMs, onReady, onComplete }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const engineRef = useRef<SlotMachineEngine | null>(null)
-  const onCompleteRef = useRef(onComplete)
-  onCompleteRef.current = onComplete
+export const AnimationView = forwardRef<AnimationViewHandle, Props>(
+  function AnimationView({ students, count, onComplete }, ref) {
+    const canvasRef = useRef<HTMLCanvasElement>(null)
+    const engineRef = useRef<SlotMachineEngine | null>(null)
+    const onCompleteRef = useRef(onComplete)
+    onCompleteRef.current = onComplete
 
-  const initEngine = useCallback(() => {
-    if (!canvasRef.current) return
-    const engine = new SlotMachineEngine(canvasRef.current)
-    engine.resize()
-    engine.setNames(students.map((s) => ({ id: s.id, text: s.name })))
-    engine.setDisplayCount(count)
-    engine.start()
-    engineRef.current = engine
-    onReady?.(engine)
-  }, [students, onReady, count])
+    useImperativeHandle(ref, () => ({
+      engine: () => engineRef.current,
+    }), [])
 
-  useEffect(() => {
-    initEngine()
-    const handleResize = () => engineRef.current?.resize()
-    window.addEventListener('resize', handleResize)
-    return () => {
-      engineRef.current?.stop()
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [initEngine])
+    // Create engine once on mount
+    useEffect(() => {
+      if (!canvasRef.current) return
+      const engine = new SlotMachineEngine(canvasRef.current)
+      engine.resize()
+      engine.setOnComplete((ids) => onCompleteRef.current?.(ids))
+      engine.setNames(students.map((s) => ({ id: s.id, text: s.name, suffix: s.student_no?.slice(-4) || undefined })))
+      engine.setDisplayCount(count)
+      engine.start()
+      engineRef.current = engine
 
-  useEffect(() => {
-    if (engineRef.current) engineRef.current.setDisplayCount(count)
-  }, [count])
+      const handleResize = () => engine.resize()
+      window.addEventListener('resize', handleResize)
+      return () => {
+        engine.stop()
+        window.removeEventListener('resize', handleResize)
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
-  useEffect(() => {
-    if (!engineRef.current || !rolling || selectedIds.length === 0) return
-    engineRef.current.startRolling(selectedIds, durationMs, (ids) => {
-      onCompleteRef.current?.(ids)
-    })
-  }, [rolling, selectedIds, durationMs])
+    // Update names when students actually change (not just reference)
+    const studentsKey = students.map((s) => `${s.id}:${s.name}:${s.student_no || ''}`).join(',')
+    useEffect(() => {
+      engineRef.current?.setNames(students.map((s) => ({ id: s.id, text: s.name })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [studentsKey])
 
-  return <canvas ref={canvasRef} className="w-full h-full" />
-}
+    // Update display count when count changes (without recreating engine)
+    useEffect(() => {
+      engineRef.current?.setDisplayCount(count)
+    }, [count])
+
+    return <canvas ref={canvasRef} className="w-full h-full" />
+  }
+)

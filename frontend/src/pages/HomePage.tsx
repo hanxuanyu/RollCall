@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
-import { rollcallApi, scoreApi, adminApi } from '@/lib/api'
+import { rollcallApi, scoreApi } from '@/lib/api'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import type { Student } from '@/types'
-import type { SlotMachineEngine } from '@/components/rollcall/SlotMachine'
-import { AnimationView } from '@/components/rollcall/BallMachineView'
-import { PasswordDialog } from '@/components/layout/PasswordDialog'
+import { AnimationView, type AnimationViewHandle } from '@/components/rollcall/BallMachineView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -22,15 +20,14 @@ import { Dices, Users, Settings, Plus, Minus } from 'lucide-react'
 export default function HomePage() {
   const navigate = useNavigate()
   const { classes, currentClass, setCurrentClass, students, config,
-    adminAuthenticated, setAdminAuthenticated, loadStudents } = useAppStore()
+    setAdminAuthenticated, loadStudents } = useAppStore()
   const [count, setCount] = useState('1')
   const [rolling, setRolling] = useState(false)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [result, setResult] = useState<Student[]>([])
   const [showResult, setShowResult] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
   const [scoreDelta, setScoreDelta] = useState(1)
-  const engineRef = useRef<SlotMachineEngine | null>(null)
+  const animViewRef = useRef<AnimationViewHandle>(null)
 
   const activeStudents = students.filter((s) => s.status === 'active')
   const animDuration = config?.feature.enableAnimation ? (config.feature.animationDuration || 5) * 1000 : 500
@@ -67,25 +64,38 @@ export default function HomePage() {
     setShowResult(false)
     setSelectedIds([])
 
+    const engine = animViewRef.current?.engine()
+
+    const startTime = performance.now()
+    engine?.beginSpin()
+    setRolling(true)
+
     try {
-      // Backend selects winners (respects fair/weighted/random mode)
       const selected = await rollcallApi.doRollCall(currentClass.id, Number(count))
       if (selected && selected.length > 0) {
         const ids = selected.map((s) => s.id)
         setSelectedIds(ids)
-        setRolling(true)
+        const elapsed = performance.now() - startTime
+        const remaining = Math.max(2000, animDuration - elapsed)
+        engine?.setTargets(ids, remaining)
+      } else {
+        engine?.reset()
+        setRolling(false)
       }
     } catch (e: any) {
       toast.error(e?.message || '点名失败')
+      engine?.reset()
+      setRolling(false)
     }
-  }, [currentClass, activeStudents, count])
+  }, [currentClass, activeStudents, count, animDuration])
 
   const handleScoreOne = async (studentId: number, delta: number) => {
+    const student = result.find((s) => s.id === studentId)
     try {
       await scoreApi.add(studentId, delta, delta > 0 ? '课堂加分' : '课堂扣分')
       setResult((prev) => prev.map((s) => s.id === studentId ? { ...s, score: s.score + delta } : s))
       if (currentClass) loadStudents(currentClass.id)
-      toast.success(delta > 0 ? `+${delta}` : `${delta}`)
+      toast.success(`为 ${student?.name ?? '学生'} ${delta > 0 ? '增加' : '减少'} ${Math.abs(delta)} 积分`)
     } catch (e: any) { toast.error(e?.message || '操作失败') }
   }
 
@@ -95,7 +105,7 @@ export default function HomePage() {
       await scoreApi.batchAdd(result.map((s) => s.id), delta, delta > 0 ? '课堂批量加分' : '课堂批量扣分')
       setResult((prev) => prev.map((s) => ({ ...s, score: s.score + delta })))
       if (currentClass) loadStudents(currentClass.id)
-      toast.success(`全部 ${delta > 0 ? '+' : ''}${delta}`)
+      toast.success(`为 ${result.length} 位同学${delta > 0 ? '增加' : '减少'} ${Math.abs(delta)} 积分`)
     } catch (e: any) { toast.error(e?.message || '操作失败') }
   }
 
@@ -104,16 +114,12 @@ export default function HomePage() {
     setResult([])
     setSelectedIds([])
     setRolling(false)
-    engineRef.current?.reset()
+    animViewRef.current?.engine()?.reset()
   }
 
-  const handleAdminClick = async () => {
-    if (adminAuthenticated) { navigate('/admin/classes'); return }
-    try {
-      const hasPassword = await adminApi.hasPassword()
-      if (!hasPassword) { setAdminAuthenticated(true); navigate('/admin/classes') }
-      else setShowPassword(true)
-    } catch { navigate('/admin/classes') }
+  const handleAdminClick = () => {
+    setAdminAuthenticated(false)
+    navigate('/admin/classes')
   }
 
   const modeLabel: Record<string, string> = { fair: '公平模式', random: '纯随机', weighted: '积分权重' }
@@ -124,9 +130,6 @@ export default function HomePage() {
         <Dices className="h-16 w-16 opacity-30" />
         <p className="text-lg">请先选择或创建一个班级</p>
         <Button onClick={handleAdminClick}>进入管理后台</Button>
-        <PasswordDialog open={showPassword} onClose={() => setShowPassword(false)}
-          onSuccess={() => { setShowPassword(false); setAdminAuthenticated(true); navigate('/admin/classes') }}
-          onVerify={adminApi.verify} />
       </div>
     )
   }
@@ -166,12 +169,9 @@ export default function HomePage() {
       <div className="flex-1 relative min-h-0">
         {activeStudents.length > 0 ? (
           <AnimationView
+            ref={animViewRef}
             students={activeStudents}
-            rolling={rolling}
-            selectedIds={selectedIds}
             count={Number(count)}
-            durationMs={animDuration}
-            onReady={(e) => { engineRef.current = e }}
             onComplete={handleAnimComplete}
           />
         ) : (
@@ -184,7 +184,7 @@ export default function HomePage() {
         </Button>
       </div>
 
-      <Dialog open={showResult} onOpenChange={(v) => { if (!v) handleCloseResult() }}>
+      <Dialog open={showResult} onOpenChange={(v) => { if (!v) handleCloseResult() }} disablePointerDismissal>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-center text-lg">点名结果</DialogTitle>
@@ -202,6 +202,9 @@ export default function HomePage() {
                     </Badge>
                   </div>
                   <span className="text-sm font-medium text-center truncate w-full">{s.name}</span>
+                  {s.student_no && (
+                    <span className="text-xs text-muted-foreground">{s.student_no.slice(-4)}</span>
+                  )}
                   <div className="flex items-center gap-1">
                     <Button variant="outline" size="icon" className="h-7 w-7 text-green-600 border-green-200 hover:bg-green-50"
                       onClick={() => handleScoreOne(s.id, scoreDelta)}><Plus className="h-3.5 w-3.5" /></Button>
@@ -226,10 +229,6 @@ export default function HomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <PasswordDialog open={showPassword} onClose={() => setShowPassword(false)}
-        onSuccess={() => { setShowPassword(false); setAdminAuthenticated(true); navigate('/admin/classes') }}
-        onVerify={adminApi.verify} />
     </div>
   )
 }

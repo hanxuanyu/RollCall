@@ -1,9 +1,12 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { GraduationCap, Users, Trophy, Settings, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
+import { adminApi } from '@/lib/api'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { PasswordDialog } from '@/components/layout/PasswordDialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -18,7 +21,32 @@ const navItems = [
 export function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { classes, currentClass, setCurrentClass } = useAppStore()
+  const { classes, currentClass, setCurrentClass, adminAuthenticated, setAdminAuthenticated } = useAppStore()
+  const [showPassword, setShowPassword] = useState(false)
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    if (adminAuthenticated) { setChecking(false); return }
+    adminApi.hasPassword().then((has) => {
+      if (!has) { setAdminAuthenticated(true); setChecking(false) }
+      else { setShowPassword(true); setChecking(false) }
+    }).catch(() => { setChecking(false) })
+  }, [adminAuthenticated, setAdminAuthenticated])
+
+  if (checking) return null
+
+  if (!adminAuthenticated) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <PasswordDialog
+          open={showPassword}
+          onClose={() => { setShowPassword(false); navigate('/') }}
+          onSuccess={() => { setShowPassword(false); setAdminAuthenticated(true) }}
+          onVerify={adminApi.verify}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -40,7 +68,7 @@ export function AdminLayout() {
               }}
             >
               <SelectTrigger className="w-36 h-8 text-sm">
-                <SelectValue placeholder="选择班级" />
+                <SelectValue>{currentClass?.name ?? '选择班级'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {classes.map((c) => (
@@ -73,7 +101,7 @@ export function AdminLayout() {
           ))}
         </nav>
 
-        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+        <Button variant="ghost" size="sm" onClick={() => { setAdminAuthenticated(false); navigate('/') }}>
           <ArrowLeft className="mr-1 h-4 w-4" />
           返回点名
         </Button>

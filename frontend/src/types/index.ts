@@ -9,6 +9,7 @@ export interface Student {
   id: number
   class_id: number
   name: string
+  student_no: string
   gender: string
   score: number
   status: string

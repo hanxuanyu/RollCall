@@ -12,8 +12,8 @@ func (a *App) GetStudents(classID int64) ([]model.Student, error) {
 	return a.studentSvc.List(classID)
 }
 
-func (a *App) CreateStudent(classID int64, name, gender string) (*model.Student, error) {
-	return a.studentSvc.Create(classID, name, gender)
+func (a *App) CreateStudent(classID int64, name, studentNo, gender string) (*model.Student, error) {
+	return a.studentSvc.Create(classID, name, studentNo, gender)
 }
 
 func (a *App) UpdateStudent(stu model.Student) error {

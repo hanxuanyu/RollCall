@@ -17,8 +17,8 @@ func NewStudentRepo(db *sql.DB) *StudentRepo {
 
 func (r *StudentRepo) Create(s *model.Student) (*model.Student, error) {
 	res, err := r.db.Exec(
-		"INSERT INTO students (class_id, name, gender, score, status) VALUES (?, ?, ?, ?, ?)",
-		s.ClassID, s.Name, s.Gender, s.Score, "active",
+		"INSERT INTO students (class_id, name, student_no, gender, score, status) VALUES (?, ?, ?, ?, ?, ?)",
+		s.ClassID, s.Name, s.StudentNo, s.Gender, s.Score, "active",
 	)
 	if err != nil {
 		return nil, err
@@ -30,8 +30,8 @@ func (r *StudentRepo) Create(s *model.Student) (*model.Student, error) {
 func (r *StudentRepo) GetByID(id int64) (*model.Student, error) {
 	s := &model.Student{}
 	err := r.db.QueryRow(
-		"SELECT id, class_id, name, gender, score, status, created_at FROM students WHERE id = ?", id,
-	).Scan(&s.ID, &s.ClassID, &s.Name, &s.Gender, &s.Score, &s.Status, &s.CreatedAt)
+		"SELECT id, class_id, name, student_no, gender, score, status, created_at FROM students WHERE id = ?", id,
+	).Scan(&s.ID, &s.ClassID, &s.Name, &s.StudentNo, &s.Gender, &s.Score, &s.Status, &s.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (r *StudentRepo) GetByID(id int64) (*model.Student, error) {
 
 func (r *StudentRepo) ListByClassID(classID int64) ([]model.Student, error) {
 	rows, err := r.db.Query(
-		"SELECT id, class_id, name, gender, score, status, created_at FROM students WHERE class_id = ? ORDER BY id", classID,
+		"SELECT id, class_id, name, student_no, gender, score, status, created_at FROM students WHERE class_id = ? ORDER BY id", classID,
 	)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (r *StudentRepo) ListByClassID(classID int64) ([]model.Student, error) {
 
 func (r *StudentRepo) ListActiveByClassID(classID int64) ([]model.Student, error) {
 	rows, err := r.db.Query(
-		"SELECT id, class_id, name, gender, score, status, created_at FROM students WHERE class_id = ? AND status = 'active' ORDER BY id", classID,
+		"SELECT id, class_id, name, student_no, gender, score, status, created_at FROM students WHERE class_id = ? AND status = 'active' ORDER BY id", classID,
 	)
 	if err != nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (r *StudentRepo) ListActiveByClassID(classID int64) ([]model.Student, error
 
 func (r *StudentRepo) Update(s *model.Student) error {
 	_, err := r.db.Exec(
-		"UPDATE students SET name = ?, gender = ?, score = ?, status = ? WHERE id = ?",
-		s.Name, s.Gender, s.Score, s.Status, s.ID,
+		"UPDATE students SET name = ?, student_no = ?, gender = ?, score = ?, status = ? WHERE id = ?",
+		s.Name, s.StudentNo, s.Gender, s.Score, s.Status, s.ID,
 	)
 	return err
 }
@@ -78,14 +78,14 @@ func (r *StudentRepo) BatchCreate(students []model.Student) error {
 	if err != nil {
 		return err
 	}
-	stmt, err := tx.Prepare("INSERT INTO students (class_id, name, gender, score, status) VALUES (?, ?, ?, ?, 'active')")
+	stmt, err := tx.Prepare("INSERT INTO students (class_id, name, student_no, gender, score, status) VALUES (?, ?, ?, ?, ?, 'active')")
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 	defer stmt.Close()
 	for _, s := range students {
-		if _, err := stmt.Exec(s.ClassID, s.Name, s.Gender, s.Score); err != nil {
+		if _, err := stmt.Exec(s.ClassID, s.Name, s.StudentNo, s.Gender, s.Score); err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -115,8 +115,8 @@ func (r *StudentRepo) BatchUpdateScore(ids []int64, delta int) error {
 
 func (r *StudentRepo) Search(classID int64, query string) ([]model.Student, error) {
 	rows, err := r.db.Query(
-		"SELECT id, class_id, name, gender, score, status, created_at FROM students WHERE class_id = ? AND name LIKE ? ORDER BY id",
-		classID, "%"+query+"%",
+		"SELECT id, class_id, name, student_no, gender, score, status, created_at FROM students WHERE class_id = ? AND (name LIKE ? OR student_no LIKE ?) ORDER BY id",
+		classID, "%"+query+"%", "%"+query+"%",
 	)
 	if err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func scanStudents(rows *sql.Rows) ([]model.Student, error) {
 	var list []model.Student
 	for rows.Next() {
 		var s model.Student
-		rows.Scan(&s.ID, &s.ClassID, &s.Name, &s.Gender, &s.Score, &s.Status, &s.CreatedAt)
+		rows.Scan(&s.ID, &s.ClassID, &s.Name, &s.StudentNo, &s.Gender, &s.Score, &s.Status, &s.CreatedAt)
 		list = append(list, s)
 	}
 	return list, nil

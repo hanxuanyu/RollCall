@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { configApi, adminApi } from '@/lib/api'
+import { configApi, adminApi, rollcallApi } from '@/lib/api'
 import { toast } from 'sonner'
 import type { AppConfig } from '@/types'
-import { Save, Lock, ShieldCheck, ShieldOff } from 'lucide-react'
+import { Save, Lock, ShieldCheck, ShieldOff, Trash2, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,14 +12,38 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 
 export default function SettingsPage() {
-  const { config, loadConfig } = useAppStore()
+  const { config, loadConfig, currentClass } = useAppStore()
   const [form, setForm] = useState<AppConfig | null>(null)
   const [hasPassword, setHasPassword] = useState(false)
   const [pwForm, setPwForm] = useState({ old: '', new_: '', confirm: '' })
+  const [clearOpen, setClearOpen] = useState(false)
+  const [weightOpen, setWeightOpen] = useState(false)
+  const [weightData, setWeightData] = useState<{ id: number; name: string; student_no: string; score: number; weight: number; prob: number }[]>([])
+
+  const handleViewWeights = async () => {
+    if (!currentClass) return
+    try {
+      const data = await rollcallApi.getWeightInfo(currentClass.id)
+      setWeightData(data || [])
+      setWeightOpen(true)
+    } catch (e: any) {
+      toast.error(e?.message || '获取权重数据失败')
+    }
+  }
 
   useEffect(() => {
     if (config) setForm(structuredClone(config))
@@ -89,7 +113,7 @@ export default function SettingsPage() {
             <p className="text-xs text-muted-foreground">
               {form.random.mode === 'fair' && '最近被选中的学生概率降低，长期趋于均衡'}
               {form.random.mode === 'random' && '完全随机，每个学生概率相同'}
-              {form.random.mode === 'weighted' && '积分越高的学生被选中概率越高'}
+              {form.random.mode === 'weighted' && '积分越低的学生被选中概率越高，促进积分均衡'}
             </p>
           </div>
           <Separator />
@@ -168,9 +192,50 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trash2 className="h-4 w-4" /> 数据管理
+          </CardTitle>
+          <CardDescription>清空抽取记录可重置防重复窗口和权重计算</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-2">
+          <Button variant="destructive" onClick={() => setClearOpen(true)} disabled={!currentClass}>
+            <Trash2 className="mr-2 h-4 w-4" /> 清空抽取记录
+          </Button>
+          <Button variant="outline" onClick={handleViewWeights} disabled={!currentClass}>
+            <BarChart3 className="mr-2 h-4 w-4" /> 查看权重数据
+          </Button>
+        </CardContent>
+      </Card>
+
       <Button onClick={handleSave} className="w-full">
         <Save className="mr-2 h-4 w-4" /> 保存设置
       </Button>
+
+      <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认清空</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要清空「{currentClass?.name}」的所有抽取记录吗？此操作不可撤销，清空后防重复窗口和权重将重新计算。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={async () => {
+              if (!currentClass) return
+              try {
+                await rollcallApi.clearLogs(currentClass.id)
+                toast.success('抽取记录已清空')
+                setClearOpen(false)
+              } catch (e: any) {
+                toast.error(e?.message || '清空失败')
+              }
+            }}>确认清空</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader>
@@ -224,6 +289,41 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Dialog open={weightOpen} onOpenChange={setWeightOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>权重数据 — {currentClass?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto rounded-md border">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background z-10">
+                <TableRow>
+                  <TableHead>姓名</TableHead>
+                  <TableHead>学号</TableHead>
+                  <TableHead className="text-right">积分</TableHead>
+                  <TableHead className="text-right">权重</TableHead>
+                  <TableHead className="text-right">概率</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {weightData.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{s.student_no || '-'}</TableCell>
+                    <TableCell className="text-right">{s.score}</TableCell>
+                    <TableCell className="text-right">{s.weight}</TableCell>
+                    <TableCell className="text-right">{s.prob}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {weightData.length === 0 && (
+              <div className="py-8 text-center text-muted-foreground">暂无数据</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

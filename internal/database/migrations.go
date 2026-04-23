@@ -43,5 +43,33 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	return migrateV2(db)
+}
+
+func migrateV2(db *sql.DB) error {
+	rows, err := db.Query("PRAGMA table_info(students)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	hasStudentNo := false
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull int
+		var dfltValue sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == "student_no" {
+			hasStudentNo = true
+		}
+	}
+	if !hasStudentNo {
+		if _, err := db.Exec("ALTER TABLE students ADD COLUMN student_no TEXT NOT NULL DEFAULT ''"); err != nil {
+			return err
+		}
+	}
 	return nil
 }

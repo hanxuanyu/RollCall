@@ -21,8 +21,8 @@ func NewStudentService(repo *repository.StudentRepo) *StudentService {
 	return &StudentService{repo: repo}
 }
 
-func (s *StudentService) Create(classID int64, name, gender string) (*model.Student, error) {
-	return s.repo.Create(&model.Student{ClassID: classID, Name: name, Gender: gender})
+func (s *StudentService) Create(classID int64, name, studentNo, gender string) (*model.Student, error) {
+	return s.repo.Create(&model.Student{ClassID: classID, Name: name, StudentNo: studentNo, Gender: gender})
 }
 
 func (s *StudentService) List(classID int64) ([]model.Student, error) {
@@ -56,6 +56,8 @@ func (s *StudentService) ParseCSV(filePath string) ([]model.Student, error) {
 	defer f.Close()
 	reader := csv.NewReader(f)
 	var students []model.Student
+	isOldFormat := false
+	firstData := true
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
@@ -71,13 +73,34 @@ func (s *StudentService) ParseCSV(filePath string) ([]model.Student, error) {
 		if name == "" || name == "姓名" || name == "name" {
 			continue
 		}
-		stu := model.Student{Name: name}
-		if len(record) > 1 {
-			stu.Gender = strings.TrimSpace(record[1])
+		if firstData && len(record) > 1 {
+			col1 := strings.TrimSpace(record[1])
+			if col1 == "男" || col1 == "女" || col1 == "male" || col1 == "female" {
+				isOldFormat = true
+			}
+			firstData = false
 		}
-		if len(record) > 2 {
-			if score, err := strconv.Atoi(strings.TrimSpace(record[2])); err == nil {
-				stu.Score = score
+		stu := model.Student{Name: name}
+		if isOldFormat {
+			if len(record) > 1 {
+				stu.Gender = strings.TrimSpace(record[1])
+			}
+			if len(record) > 2 {
+				if score, err := strconv.Atoi(strings.TrimSpace(record[2])); err == nil {
+					stu.Score = score
+				}
+			}
+		} else {
+			if len(record) > 1 {
+				stu.StudentNo = strings.TrimSpace(record[1])
+			}
+			if len(record) > 2 {
+				stu.Gender = strings.TrimSpace(record[2])
+			}
+			if len(record) > 3 {
+				if score, err := strconv.Atoi(strings.TrimSpace(record[3])); err == nil {
+					stu.Score = score
+				}
 			}
 		}
 		students = append(students, stu)
@@ -97,6 +120,8 @@ func (s *StudentService) ParseExcel(filePath string) ([]model.Student, error) {
 		return nil, err
 	}
 	var students []model.Student
+	isOldFormat := false
+	firstData := true
 	for i, row := range rows {
 		if i == 0 && len(row) > 0 && (row[0] == "姓名" || row[0] == "name") {
 			continue
@@ -108,13 +133,34 @@ func (s *StudentService) ParseExcel(filePath string) ([]model.Student, error) {
 		if name == "" {
 			continue
 		}
-		stu := model.Student{Name: name}
-		if len(row) > 1 {
-			stu.Gender = strings.TrimSpace(row[1])
+		if firstData && len(row) > 1 {
+			col1 := strings.TrimSpace(row[1])
+			if col1 == "男" || col1 == "女" || col1 == "male" || col1 == "female" {
+				isOldFormat = true
+			}
+			firstData = false
 		}
-		if len(row) > 2 {
-			if score, err := strconv.Atoi(strings.TrimSpace(row[2])); err == nil {
-				stu.Score = score
+		stu := model.Student{Name: name}
+		if isOldFormat {
+			if len(row) > 1 {
+				stu.Gender = strings.TrimSpace(row[1])
+			}
+			if len(row) > 2 {
+				if score, err := strconv.Atoi(strings.TrimSpace(row[2])); err == nil {
+					stu.Score = score
+				}
+			}
+		} else {
+			if len(row) > 1 {
+				stu.StudentNo = strings.TrimSpace(row[1])
+			}
+			if len(row) > 2 {
+				stu.Gender = strings.TrimSpace(row[2])
+			}
+			if len(row) > 3 {
+				if score, err := strconv.Atoi(strings.TrimSpace(row[3])); err == nil {
+					stu.Score = score
+				}
 			}
 		}
 		students = append(students, stu)
@@ -134,9 +180,9 @@ func (s *StudentService) ExportCSV(classID int64, filePath string) error {
 	defer f.Close()
 	f.Write([]byte{0xEF, 0xBB, 0xBF})
 	w := csv.NewWriter(f)
-	w.Write([]string{"姓名", "性别", "积分", "状态"})
+	w.Write([]string{"姓名", "学号", "性别", "积分", "状态"})
 	for _, stu := range students {
-		w.Write([]string{stu.Name, stu.Gender, strconv.Itoa(stu.Score), stu.Status})
+		w.Write([]string{stu.Name, stu.StudentNo, stu.Gender, strconv.Itoa(stu.Score), stu.Status})
 	}
 	w.Flush()
 	return w.Error()
@@ -150,7 +196,7 @@ func (s *StudentService) ExportExcel(classID int64, filePath string) error {
 	f := excelize.NewFile()
 	sheet := "学生列表"
 	f.SetSheetName("Sheet1", sheet)
-	headers := []string{"姓名", "性别", "积分", "状态"}
+	headers := []string{"姓名", "学号", "性别", "积分", "状态"}
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		f.SetCellValue(sheet, cell, h)
@@ -158,9 +204,10 @@ func (s *StudentService) ExportExcel(classID int64, filePath string) error {
 	for i, stu := range students {
 		row := i + 2
 		f.SetCellValue(sheet, cellName(1, row), stu.Name)
-		f.SetCellValue(sheet, cellName(2, row), stu.Gender)
-		f.SetCellValue(sheet, cellName(3, row), stu.Score)
-		f.SetCellValue(sheet, cellName(4, row), stu.Status)
+		f.SetCellValue(sheet, cellName(2, row), stu.StudentNo)
+		f.SetCellValue(sheet, cellName(3, row), stu.Gender)
+		f.SetCellValue(sheet, cellName(4, row), stu.Score)
+		f.SetCellValue(sheet, cellName(5, row), stu.Status)
 	}
 	return f.SaveAs(filePath)
 }

@@ -10,6 +10,10 @@ export function BatchAddScore(arg1, arg2, arg3) {
   return window['go']['app']['App']['BatchAddScore'](arg1, arg2, arg3);
 }
 
+export function ClearRollCallLogs(arg1) {
+  return window['go']['app']['App']['ClearRollCallLogs'](arg1);
+}
+
 export function ConfirmImport(arg1, arg2) {
   return window['go']['app']['App']['ConfirmImport'](arg1, arg2);
 }
@@ -18,8 +22,8 @@ export function CreateClass(arg1) {
   return window['go']['app']['App']['CreateClass'](arg1);
 }
 
-export function CreateStudent(arg1, arg2, arg3) {
-  return window['go']['app']['App']['CreateStudent'](arg1, arg2, arg3);
+export function CreateStudent(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['CreateStudent'](arg1, arg2, arg3, arg4);
 }
 
 export function DeleteClass(arg1) {
@@ -68,6 +72,10 @@ export function GetScoreLogsByClass(arg1) {
 
 export function GetStudents(arg1) {
   return window['go']['app']['App']['GetStudents'](arg1);
+}
+
+export function GetWeightInfo(arg1) {
+  return window['go']['app']['App']['GetWeightInfo'](arg1);
 }
 
 export function HasAdminPassword() {

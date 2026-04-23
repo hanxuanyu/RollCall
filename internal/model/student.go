@@ -4,6 +4,7 @@ type Student struct {
 	ID        int64  `json:"id"`
 	ClassID   int64  `json:"class_id"`
 	Name      string `json:"name"`
+	StudentNo string `json:"student_no"`
 	Gender    string `json:"gender"`
 	Score     int    `json:"score"`
 	Status    string `json:"status"`
