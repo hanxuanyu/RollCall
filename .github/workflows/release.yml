@@ -82,7 +82,7 @@ jobs:
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
             -tags server \
             -ldflags "${{ steps.version.outputs.ldflags }}" \
-            -o "build/bin/RollCallServer${EXT}" .
+            -o "build/bin/rollcall-server${EXT}" .
 
       # --- Package desktop ---
       - name: Package desktop (Windows)
@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           cd build/bin
-          7z a ../../RollCall-desktop-windows.zip RollCall.exe
+          7z a ../../rollcall-desktop-windows.zip rollcall.exe
 
       - name: Package desktop (macOS)
         if: matrix.goos == 'darwin' && matrix.desktop
@@ -98,12 +98,12 @@ jobs:
         run: |
           brew install create-dmg || true
           create-dmg \
-            --volname "RollCall" \
+            --volname "rollcall" \
             --no-internet-enable \
-            "RollCall-desktop-macos.dmg" \
-            "build/bin/RollCall.app" || true
-          if [ ! -f RollCall-desktop-macos.dmg ]; then
-            cd build/bin && tar czf ../../RollCall-desktop-macos.tar.gz RollCall.app
+            "rollcall-desktop-macos.dmg" \
+            "build/bin/rollcall.app" || true
+          if [ ! -f rollcall-desktop-macos.dmg ]; then
+            cd build/bin && tar czf ../../rollcall-desktop-macos.tar.gz rollcall.app
           fi
 
       # --- Package server ---
@@ -112,30 +112,30 @@ jobs:
         shell: bash
         run: |
           cd build/bin
-          7z a ../../RollCall-server-windows.zip RollCallServer.exe
+          7z a ../../rollcall-server-windows.zip rollcall-server.exe
 
       - name: Package server (macOS)
         if: matrix.goos == 'darwin'
         shell: bash
         run: |
-          chmod +x build/bin/RollCallServer
-          cd build/bin && tar czf ../../RollCall-server-macos.tar.gz RollCallServer
+          chmod +x build/bin/rollcall-server
+          cd build/bin && tar czf ../../rollcall-server-macos.tar.gz rollcall-server
 
       - name: Package server (Linux)
         if: matrix.goos == 'linux'
         shell: bash
         run: |
-          chmod +x build/bin/RollCallServer
-          cd build/bin && tar czf ../../RollCall-server-linux.tar.gz RollCallServer
+          chmod +x build/bin/rollcall-server
+          cd build/bin && tar czf ../../rollcall-server-linux.tar.gz rollcall-server
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.goos }}
+          name: rollcall-${{ matrix.goos }}
           path: |
-            RollCall-*.zip
-            RollCall-*.tar.gz
-            RollCall-*.dmg
+            rollcall-*.zip
+            rollcall-*.tar.gz
+            rollcall-*.dmg
 
   release:
     needs: build
@@ -150,7 +150,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            RollCall-*.zip
-            RollCall-*.tar.gz
-            RollCall-*.dmg
+            rollcall-*.zip
+            rollcall-*.tar.gz
+            rollcall-*.dmg
           generate_release_notes: true

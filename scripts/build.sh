@@ -53,7 +53,7 @@ build_server() {
   CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" go build \
     -tags server \
     -ldflags "$LDFLAGS" \
-    -o "build/bin/RollCallServer${EXT}" .
+    -o "build/bin/rollcall-server${EXT}" .
 }
 
 case "$TARGET" in
