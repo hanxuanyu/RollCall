@@ -23,9 +23,10 @@ const navItems = [
 export function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { classes, currentClass, setCurrentClass, adminAuthenticated, setAdminAuthenticated } = useAppStore()
+  const { classes, currentClass, setCurrentClass, adminAuthenticated, setAdminAuthenticated, config } = useAppStore()
   const [aboutOpen, setAboutOpen] = useState(false)
   const [versionInfo, setVersionInfo] = useState<{ version: string; commitId: string } | null>(null)
+  const navigationMode = config?.app.navigationMode ?? 'bottom'
 
   useEffect(() => {
     if (!adminAuthenticated) {
@@ -45,69 +46,81 @@ export function AdminLayout() {
 
   if (!adminAuthenticated) return null
 
+  const navigation = (
+    <nav className="flex items-center gap-1">
+      {navItems.map(({ to, icon: Icon, label }) => (
+        <NavLink
+          key={to}
+          to={to}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-1.5 rounded-md text-sm font-medium transition-all duration-200',
+              'px-3 py-1.5',
+              isActive
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )
+          }
+        >
+          <Icon className="h-4 w-4" />
+          {label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+
+  const adminBar = (
+    <div className={cn(
+      'flex h-14 items-center justify-between px-6 bg-background/80 backdrop-blur shrink-0',
+      navigationMode === 'bottom' ? 'border-t' : 'border-b'
+    )}>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs">
+            RC
+          </div>
+          <span className="font-semibold">管理后台</span>
+        </div>
+
+        {classes.length > 0 && (
+          <Select
+            value={currentClass?.id?.toString() ?? ''}
+            onValueChange={(v) => {
+              const c = classes.find((c) => c.id.toString() === v)
+              if (c) setCurrentClass(c)
+            }}
+          >
+            <SelectTrigger className="w-36 h-8 text-sm">
+              <SelectValue>{currentClass?.name ?? '选择班级'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map((c) => (
+                <SelectItem key={c.id} value={c.id.toString()}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {navigation}
+
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleAbout}>
+          <Info className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => { setAdminAuthenticated(false); navigate('/') }}>
+          <ArrowLeft className="mr-1 h-4 w-4" />
+          返回点名
+        </Button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex h-screen flex-col bg-background">
-      <header className="flex h-14 items-center justify-between border-b px-6 bg-background/80 backdrop-blur shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs">
-              RC
-            </div>
-            <span className="font-semibold">管理后台</span>
-          </div>
-
-          {classes.length > 0 && (
-            <Select
-              value={currentClass?.id?.toString() ?? ''}
-              onValueChange={(v) => {
-                const c = classes.find((c) => c.id.toString() === v)
-                if (c) setCurrentClass(c)
-              }}
-            >
-              <SelectTrigger className="w-36 h-8 text-sm">
-                <SelectValue>{currentClass?.name ?? '选择班级'}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id.toString()}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        <nav className="flex items-center gap-1">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )
-              }
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleAbout}>
-            <Info className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => { setAdminAuthenticated(false); navigate('/') }}>
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            返回点名
-          </Button>
-        </div>
-      </header>
+      {navigationMode === 'top' && adminBar}
 
       <main className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
@@ -123,6 +136,8 @@ export function AdminLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {navigationMode === 'bottom' && adminBar}
 
       <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
         <DialogContent className="sm:max-w-sm">

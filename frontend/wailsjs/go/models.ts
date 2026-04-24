@@ -3,6 +3,7 @@ export namespace config {
 	export class AppConfig {
 	    port: number;
 	    mode: string;
+	    navigationMode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -12,6 +13,7 @@ export namespace config {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.port = source["port"];
 	        this.mode = source["mode"];
+	        this.navigationMode = source["navigationMode"];
 	    }
 	}
 	export class RandomConfig {

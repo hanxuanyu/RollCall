@@ -185,6 +185,36 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>界面布局</CardTitle>
+          <CardDescription>调整点名页与管理页整条操作栏的位置</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label>操作栏位置</Label>
+          <Select
+            value={form.app.navigationMode ?? 'bottom'}
+            onValueChange={(v) => v && setForm({
+              ...form,
+              app: { ...form.app, navigationMode: v as 'bottom' | 'top' },
+            })}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                {(form.app.navigationMode ?? 'bottom') === 'bottom' ? '底部操作栏（推荐）' : '顶部操作栏'}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bottom">底部操作栏（推荐）</SelectItem>
+              <SelectItem value="top">顶部操作栏</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            白板和触控屏场景建议使用底部操作栏，班级、模式、点名和后台入口会整体移动到底部。
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Trash2 className="h-4 w-4" /> 数据管理
           </CardTitle>
