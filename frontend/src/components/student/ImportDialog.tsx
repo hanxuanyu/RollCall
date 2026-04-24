@@ -60,8 +60,12 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileData = useCallback(async (data: Student[] | null) => {
-    if (!data || data.length === 0) {
-      toast.info('文件中没有有效数据')
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      if (data && !Array.isArray(data)) {
+        toast.error('解析文件失败：返回数据格式异常')
+      } else {
+        toast.info('文件中没有有效数据')
+      }
       return
     }
     setRows(toRows(data))
