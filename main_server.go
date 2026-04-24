@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os/exec"
+	"runtime"
 
 	"RollCall/internal/config"
 	"RollCall/internal/database"
@@ -54,8 +56,25 @@ func main() {
 		port = 8080
 	}
 	addr := fmt.Sprintf(":%d", port)
-	log.Printf("RollCallServer 启动在 http://localhost%s", addr)
+	url := fmt.Sprintf("http://localhost%s", addr)
+	log.Printf("RollCallServer 启动在 %s", url)
+
+	go openBrowser(url)
+
 	if err := http.ListenAndServe(addr, router); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	cmd.Run()
 }
