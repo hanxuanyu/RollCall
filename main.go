@@ -24,19 +24,15 @@ import (
 var assets embed.FS
 
 func appDataDir() string {
-	if runtime.GOOS == "windows" {
-		exe, err := os.Executable()
-		if err == nil {
-			return filepath.Join(filepath.Dir(exe), "RollCall_data")
-		}
-	}
 	if runtime.GOOS == "darwin" {
 		home, _ := os.UserHomeDir()
 		return filepath.Join(home, "Library", "Application Support", "RollCall")
 	}
-	// Linux / fallback
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".rollcall")
+	exe, err := os.Executable()
+	if err == nil {
+		return filepath.Dir(exe)
+	}
+	return "."
 }
 
 func main() {
