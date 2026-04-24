@@ -35,7 +35,7 @@ export interface RollCallLog {
 }
 
 export interface AppConfig {
-  app: { port: number; mode: string }
+  app: { port: number; mode: string; navigationMode?: 'bottom' | 'top' }
   feature: {
     enableScore: boolean
     enableAnimation: boolean

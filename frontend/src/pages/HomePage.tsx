@@ -18,6 +18,7 @@ import {
 import { Dices, Users, LayoutDashboard, Plus, Minus, Undo2 } from 'lucide-react'
 import { adminApi } from '@/lib/api'
 import { PasswordDialog } from '@/components/layout/PasswordDialog'
+import { cn } from '@/lib/utils'
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -34,6 +35,7 @@ export default function HomePage() {
 
   const activeStudents = students.filter((s) => s.status === 'active')
   const animDuration = config?.feature.enableAnimation ? (config.feature.animationDuration || 5) * 1000 : 500
+  const navigationMode = config?.app.navigationMode ?? 'bottom'
 
   const fireConfetti = useCallback(() => {
     const end = Date.now() + 1200
@@ -186,49 +188,56 @@ export default function HomePage() {
     )
   }
 
+  const homeBar = (
+    <div className={cn(
+      'flex items-center justify-between px-6 py-3 border-white/10 shrink-0',
+      navigationMode === 'bottom' ? 'border-t' : 'border-b'
+    )}>
+      <div className="flex items-center gap-3">
+        <Select value={currentClass.id.toString()}
+          onValueChange={(v) => { const c = classes.find((cls) => cls.id.toString() === v); if (c) setCurrentClass(c) }}>
+          <SelectTrigger className="w-32 h-8 text-sm bg-white/10 border-white/20 text-white">
+            <SelectValue>{currentClass.name}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>{classes.map((c) => (<SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>))}</SelectContent>
+        </Select>
+        <Badge variant="outline" className="border-white/20 text-white/80">
+          <Users className="mr-1 h-3 w-3" />总人数：{activeStudents.length}
+        </Badge>
+        <Select value={config?.random.mode ?? 'fair'} onValueChange={(v) => v && handleModeChange(v)}>
+          <SelectTrigger className="w-28 h-8 text-sm bg-white/10 border-white/20 text-white">
+            <SelectValue>{modeLabel[config?.random.mode ?? 'fair'] ?? '公平模式'}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fair">公平模式</SelectItem>
+            <SelectItem value="random">纯随机</SelectItem>
+            <SelectItem value="weighted">积分权重</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-white/60">抽取人数：</span>
+        <Select value={count} onValueChange={(v) => v && setCount(v)}>
+          <SelectTrigger className="w-20 h-8 text-sm bg-white/10 border-white/20 text-white"><SelectValue /></SelectTrigger>
+          <SelectContent>{Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (<SelectItem key={n} value={n.toString()}>{n}</SelectItem>))}</SelectContent>
+        </Select>
+        <Button disabled={rolling || activeStudents.length === 0} onClick={handleStart}
+          className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-indigo-500/40 hover:scale-105">
+          <Dices className="mr-2 h-4 w-4" />{rolling ? '抽取中...' : '开始点名'}
+        </Button>
+        <Button variant="ghost" size="icon"
+          className="h-8 w-8 text-white/60 hover:text-white hover:bg-white/10"
+          onClick={handleAdminClick}>
+          <LayoutDashboard className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col h-screen"
       style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
-      <div className="flex items-center justify-between px-6 py-3 border-b border-white/10 shrink-0">
-        <div className="flex items-center gap-3">
-          <Select value={currentClass.id.toString()}
-            onValueChange={(v) => { const c = classes.find((cls) => cls.id.toString() === v); if (c) setCurrentClass(c) }}>
-            <SelectTrigger className="w-32 h-8 text-sm bg-white/10 border-white/20 text-white">
-              <SelectValue>{currentClass.name}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>{classes.map((c) => (<SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>))}</SelectContent>
-          </Select>
-          <Badge variant="outline" className="border-white/20 text-white/80">
-            <Users className="mr-1 h-3 w-3" />总人数：{activeStudents.length}
-          </Badge>
-          <Select value={config?.random.mode ?? 'fair'} onValueChange={(v) => v && handleModeChange(v)}>
-            <SelectTrigger className="w-28 h-8 text-sm bg-white/10 border-white/20 text-white">
-              <SelectValue>{modeLabel[config?.random.mode ?? 'fair'] ?? '公平模式'}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fair">公平模式</SelectItem>
-              <SelectItem value="random">纯随机</SelectItem>
-              <SelectItem value="weighted">积分权重</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-white/60">抽取人数：</span>
-          <Select value={count} onValueChange={(v) => v && setCount(v)}>
-            <SelectTrigger className="w-20 h-8 text-sm bg-white/10 border-white/20 text-white"><SelectValue /></SelectTrigger>
-            <SelectContent>{Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (<SelectItem key={n} value={n.toString()}>{n}</SelectItem>))}</SelectContent>
-          </Select>
-          <Button disabled={rolling || activeStudents.length === 0} onClick={handleStart}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-indigo-500/40 hover:scale-105">
-            <Dices className="mr-2 h-4 w-4" />{rolling ? '抽取中...' : '开始点名'}
-          </Button>
-          <Button variant="ghost" size="icon"
-            className="h-8 w-8 text-white/60 hover:text-white hover:bg-white/10"
-            onClick={handleAdminClick}>
-            <LayoutDashboard className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      {navigationMode === 'top' && homeBar}
 
       <div className="flex-1 relative min-h-0">
         {activeStudents.length > 0 ? (
@@ -242,6 +251,8 @@ export default function HomePage() {
           <div className="flex items-center justify-center h-full text-white/40">暂无学生，请先添加学生数据</div>
         )}
       </div>
+
+      {navigationMode === 'bottom' && homeBar}
 
       <Dialog open={showResult} onOpenChange={(v) => { if (!v) handleCloseResult() }} disablePointerDismissal>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">

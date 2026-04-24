@@ -18,6 +18,7 @@ type Config struct {
 type AppConfig struct {
 	Port              int    `yaml:"port" json:"port"`
 	Mode              string `yaml:"mode" json:"mode"`
+	NavigationMode    string `yaml:"navigationMode" json:"navigationMode"`
 	AdminPasswordHash string `yaml:"adminPasswordHash" json:"-"`
 }
 
@@ -42,7 +43,7 @@ var (
 
 func defaultConfig() *Config {
 	return &Config{
-		App:     AppConfig{Port: 8080, Mode: "desktop"},
+		App:     AppConfig{Port: 8080, Mode: "desktop", NavigationMode: "bottom"},
 		Feature: FeatureConfig{EnableScore: true, EnableAnimation: true, AnimationDuration: 5, AnimationStyle: "ballMachine"},
 		Random:  RandomConfig{Mode: "fair", AvoidRepeatWindow: 5, WeightByScore: false},
 	}
