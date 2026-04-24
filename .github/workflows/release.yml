@@ -16,12 +16,15 @@ jobs:
           - os: windows-latest
             goos: windows
             goarch: amd64
+            desktop: true
           - os: macos-latest
             goos: darwin
-            goarch: amd64
+            goarch: arm64
+            desktop: true
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
+            desktop: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +50,7 @@ jobs:
           echo "ldflags=-X RollCall/internal/version.Version=${TAG} -X RollCall/internal/version.CommitID=${COMMIT_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Install Wails
+        if: matrix.desktop
         shell: bash
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
@@ -60,22 +64,14 @@ jobs:
 
       # --- Desktop build ---
       - name: Build desktop (Windows)
-        if: matrix.goos == 'windows'
+        if: matrix.goos == 'windows' && matrix.desktop
         shell: bash
         run: wails build -ldflags "${{ steps.version.outputs.ldflags }}"
 
       - name: Build desktop (macOS)
-        if: matrix.goos == 'darwin'
+        if: matrix.goos == 'darwin' && matrix.desktop
         shell: bash
         run: wails build -ldflags "${{ steps.version.outputs.ldflags }}"
-
-      - name: Build desktop (Linux)
-        if: matrix.goos == 'linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
-          wails build -ldflags "${{ steps.version.outputs.ldflags }}"
 
       # --- Server build ---
       - name: Build server
@@ -90,14 +86,14 @@ jobs:
 
       # --- Package desktop ---
       - name: Package desktop (Windows)
-        if: matrix.goos == 'windows'
+        if: matrix.goos == 'windows' && matrix.desktop
         shell: bash
         run: |
           cd build/bin
           7z a ../../RollCall-desktop-windows.zip RollCall.exe
 
       - name: Package desktop (macOS)
-        if: matrix.goos == 'darwin'
+        if: matrix.goos == 'darwin' && matrix.desktop
         shell: bash
         run: |
           brew install create-dmg || true
@@ -109,13 +105,6 @@ jobs:
           if [ ! -f RollCall-desktop-macos.dmg ]; then
             cd build/bin && tar czf ../../RollCall-desktop-macos.tar.gz RollCall.app
           fi
-
-      - name: Package desktop (Linux)
-        if: matrix.goos == 'linux'
-        shell: bash
-        run: |
-          chmod +x build/bin/RollCall
-          cd build/bin && tar czf ../../RollCall-desktop-linux.tar.gz RollCall
 
       # --- Package server ---
       - name: Package server (Windows)
