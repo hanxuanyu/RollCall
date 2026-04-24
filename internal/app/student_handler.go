@@ -45,6 +45,10 @@ func (a *App) PreviewImport() ([]model.Student, error) {
 	return a.studentSvc.ParseExcel(path)
 }
 
+func (a *App) PreviewImportText(text string) ([]model.Student, error) {
+	return a.studentSvc.ParseCSVFromText(text)
+}
+
 func (a *App) ConfirmImport(classID int64, students []model.Student) (int, error) {
 	for i := range students {
 		students[i].ClassID = classID

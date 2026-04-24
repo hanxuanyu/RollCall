@@ -54,7 +54,14 @@ func (s *StudentService) ParseCSV(filePath string) ([]model.Student, error) {
 		return nil, err
 	}
 	defer f.Close()
-	reader := csv.NewReader(f)
+	return s.parseCSVReader(csv.NewReader(f))
+}
+
+func (s *StudentService) ParseCSVFromText(text string) ([]model.Student, error) {
+	return s.parseCSVReader(csv.NewReader(strings.NewReader(text)))
+}
+
+func (s *StudentService) parseCSVReader(reader *csv.Reader) ([]model.Student, error) {
 	var students []model.Student
 	isOldFormat := false
 	firstData := true

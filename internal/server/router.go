@@ -38,6 +38,7 @@ func NewRouter(
 	mux.HandleFunc("DELETE /api/students/{id}", studentAPI.Delete)
 	mux.HandleFunc("GET /api/classes/{classID}/students/search", studentAPI.Search)
 	mux.HandleFunc("POST /api/students/preview-import", studentAPI.PreviewImport)
+	mux.HandleFunc("POST /api/students/preview-import-text", studentAPI.PreviewImportText)
 	mux.HandleFunc("POST /api/classes/{classID}/students/import", studentAPI.Import)
 	mux.HandleFunc("POST /api/classes/{classID}/students/confirm-import", studentAPI.ConfirmImport)
 	mux.HandleFunc("GET /api/classes/{classID}/students/export", studentAPI.Export)

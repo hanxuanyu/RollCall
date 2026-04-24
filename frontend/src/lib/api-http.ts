@@ -55,6 +55,18 @@ export const studentApiHttp = {
       input.click()
     })
   },
+  previewImportText: (text: string) =>
+    request<any[]>('POST', '/students/preview-import-text', { text }),
+  previewImportFile: async (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/students/preview-import`, { method: 'POST', body: form })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }))
+      throw new Error(err.error || res.statusText)
+    }
+    return res.json() as Promise<any[]>
+  },
   confirmImport: (classID: number, students: any[]) =>
     request<number>('POST', `/classes/${classID}/students/confirm-import`, students),
   export_: (classID: number) => {

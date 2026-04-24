@@ -46,6 +46,8 @@ export function HasAdminPassword():Promise<boolean>;
 
 export function PreviewImport():Promise<Array<model.Student>>;
 
+export function PreviewImportText(arg1:string):Promise<Array<model.Student>>;
+
 export function ReportRollCallResult(arg1:number,arg2:Array<number>):Promise<Array<model.Student>>;
 
 export function SearchStudents(arg1:number,arg2:string):Promise<Array<model.Student>>;

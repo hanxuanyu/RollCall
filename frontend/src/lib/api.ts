@@ -24,6 +24,21 @@ export const studentApi = isWails ? {
   delete: (id: number) => App.DeleteStudent(id),
   search: (classID: number, q: string) => App.SearchStudents(classID, q),
   previewImport: () => App.PreviewImport(),
+  previewImportText: (text: string) => App.PreviewImportText(text),
+  previewImportFile: (file: File) => {
+    return new Promise<Student[]>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async () => {
+        try {
+          const text = reader.result as string
+          const data = await App.PreviewImportText(text)
+          resolve(data)
+        } catch (e) { reject(e) }
+      }
+      reader.onerror = () => reject(new Error('读取文件失败'))
+      reader.readAsText(file)
+    })
+  },
   confirmImport: (classID: number, students: Student[]) => App.ConfirmImport(classID, students as any),
   export_: (classID: number) => App.ExportStudents(classID),
 } : studentApiHttp

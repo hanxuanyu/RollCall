@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { studentApi } from '@/lib/api'
 import type { Student } from '@/types'
-import { Trash2, Plus, AlertTriangle } from 'lucide-react'
+import { Trash2, Plus, AlertTriangle, Upload, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
@@ -40,6 +42,12 @@ interface DuplicateInfo {
   existing: Student
 }
 
+const ACCEPT_EXTS = '.csv,.xlsx,.xls'
+
+function toRows(data: Student[]): PreviewRow[] {
+  return data.map((s) => ({ name: s.name, student_no: s.student_no || '', gender: s.gender || '', score: s.score || 0 }))
+}
+
 export function ImportDialog({ classID, open, existingStudents, onClose, onSuccess }: Props) {
   const [rows, setRows] = useState<PreviewRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -47,18 +55,79 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
   const [duplicates, setDuplicates] = useState<DuplicateInfo[]>([])
   const [dupDialogOpen, setDupDialogOpen] = useState(false)
   const [pendingImport, setPendingImport] = useState<PreviewRow[]>([])
+  const [dragging, setDragging] = useState(false)
+  const [csvText, setCsvText] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileData = useCallback(async (data: Student[] | null) => {
+    if (!data || data.length === 0) {
+      toast.info('文件中没有有效数据')
+      return
+    }
+    setRows(toRows(data))
+    setParsed(true)
+  }, [])
+
+  const handleFile = useCallback(async (file: File) => {
+    try {
+      const data = await (studentApi as any).previewImportFile
+        ? (studentApi as any).previewImportFile(file)
+        : studentApi.previewImport()
+      handleFileData(data)
+    } catch (e: any) {
+      toast.error(e?.message || '解析文件失败')
+    }
+  }, [handleFileData])
 
   const handleSelectFile = async () => {
     try {
       const data = await studentApi.previewImport()
-      if (!data || data.length === 0) {
-        toast.info('文件中没有有效数据')
-        return
-      }
-      setRows(data.map((s: Student) => ({ name: s.name, student_no: s.student_no || '', gender: s.gender || '', score: s.score || 0 })))
-      setParsed(true)
+      handleFileData(data)
     } catch (e: any) {
       toast.error(e?.message || '解析文件失败')
+    }
+  }
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    if (!file) return
+    const ext = file.name.toLowerCase().split('.').pop()
+    if (!['csv', 'xlsx', 'xls'].includes(ext || '')) {
+      toast.error('仅支持 CSV、Excel 文件')
+      return
+    }
+    handleFile(file)
+  }, [handleFile])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+  }, [])
+
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleFile(file)
+    e.target.value = ''
+  }, [handleFile])
+
+  const handleParseText = async () => {
+    const text = csvText.trim()
+    if (!text) {
+      toast.error('请输入内容')
+      return
+    }
+    try {
+      const data = await (studentApi as any).previewImportText(text)
+      handleFileData(data)
+    } catch (e: any) {
+      toast.error(e?.message || '解析文本失败')
     }
   }
 
@@ -153,6 +222,8 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
     setParsed(false)
     setDuplicates([])
     setPendingImport([])
+    setCsvText('')
+    setDragging(false)
     onClose()
   }
 
@@ -168,10 +239,49 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
         </DialogHeader>
 
         {!parsed ? (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <p className="text-sm text-muted-foreground">选择文件后将预览导入内容，确认后再保存</p>
-            <Button onClick={handleSelectFile}>选择文件</Button>
-          </div>
+          <Tabs defaultValue="file" className="w-full min-h-0 flex-1 flex flex-col">
+            <TabsList className="w-full shrink-0">
+              <TabsTrigger value="file"><Upload className="mr-1 h-3.5 w-3.5" />文件导入</TabsTrigger>
+              <TabsTrigger value="text"><FileText className="mr-1 h-3.5 w-3.5" />文本粘贴</TabsTrigger>
+            </TabsList>
+            <TabsContent value="file" className="min-h-0">
+              <div
+                className={`flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors cursor-pointer ${
+                  dragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                }`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className={`h-10 w-10 ${dragging ? 'text-primary' : 'text-muted-foreground/50'}`} />
+                <div className="text-center">
+                  <p className="text-sm font-medium">{dragging ? '松开以上传文件' : '拖拽文件到此处'}</p>
+                  <p className="text-xs text-muted-foreground mt-1">或点击选择文件（支持 .csv .xlsx .xls）</p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPT_EXTS}
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                />
+              </div>
+            </TabsContent>
+            <TabsContent value="text" className="min-h-0 flex-1 flex flex-col">
+              <div className="flex flex-col gap-3 min-h-0 flex-1">
+                <Textarea
+                  placeholder={"姓名,学号,性别,积分\n张三,2024001,男,0\n李四,2024002,女,0"}
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  className="font-mono text-sm min-h-0 flex-1 max-h-[40vh] resize-none"
+                />
+                <Button onClick={handleParseText} disabled={!csvText.trim()} className="self-end shrink-0">
+                  解析内容
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
         ) : (
           <>
             <div className="flex items-center justify-between">

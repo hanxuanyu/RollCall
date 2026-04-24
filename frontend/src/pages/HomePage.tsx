@@ -157,7 +157,7 @@ export default function HomePage() {
           <span className="text-sm text-white/60">抽取人数：</span>
           <Select value={count} onValueChange={(v) => v && setCount(v)}>
             <SelectTrigger className="w-20 h-8 text-sm bg-white/10 border-white/20 text-white"><SelectValue /></SelectTrigger>
-            <SelectContent>{[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (<SelectItem key={n} value={n.toString()}>{n}</SelectItem>))}</SelectContent>
+            <SelectContent>{Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (<SelectItem key={n} value={n.toString()}>{n}</SelectItem>))}</SelectContent>
           </Select>
           <Button disabled={rolling || activeStudents.length === 0} onClick={handleStart}
             className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-indigo-500/40 hover:scale-105">

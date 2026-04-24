@@ -86,6 +86,10 @@ export function PreviewImport() {
   return window['go']['app']['App']['PreviewImport']();
 }
 
+export function PreviewImportText(arg1) {
+  return window['go']['app']['App']['PreviewImportText'](arg1);
+}
+
 export function ReportRollCallResult(arg1, arg2) {
   return window['go']['app']['App']['ReportRollCallResult'](arg1, arg2);
 }

@@ -131,6 +131,22 @@ func (a *StudentAPI) PreviewImport(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, students)
 }
 
+func (a *StudentAPI) PreviewImportText(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Text string `json:"text"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.Text == "" {
+		jsonErr(w, 400, "text is required")
+		return
+	}
+	students, err := a.svc.ParseCSVFromText(body.Text)
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	jsonOK(w, students)
+}
+
 func (a *StudentAPI) Import(w http.ResponseWriter, r *http.Request) {
 	classID, err := pathInt64(r, "classID")
 	if err != nil {
