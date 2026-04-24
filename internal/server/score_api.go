@@ -71,3 +71,16 @@ func (a *ScoreAPI) GetLogsByClass(w http.ResponseWriter, r *http.Request) {
 	}
 	jsonOK(w, logs)
 }
+
+func (a *ScoreAPI) Undo(w http.ResponseWriter, r *http.Request) {
+	id, err := pathInt64(r, "id")
+	if err != nil {
+		jsonErr(w, 400, "invalid id")
+		return
+	}
+	if err := a.svc.UndoScore(id); err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	jsonOK(w, map[string]string{"status": "ok"})
+}

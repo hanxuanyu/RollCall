@@ -55,6 +55,7 @@ func NewRouter(
 	mux.HandleFunc("POST /api/scores/batch", scoreAPI.BatchAdd)
 	mux.HandleFunc("GET /api/scores/student/{id}", scoreAPI.GetLogs)
 	mux.HandleFunc("GET /api/scores/class/{id}", scoreAPI.GetLogsByClass)
+	mux.HandleFunc("DELETE /api/scores/{id}", scoreAPI.Undo)
 
 	// Config & Admin
 	mux.HandleFunc("GET /api/config", configAPI.Get)

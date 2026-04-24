@@ -56,6 +56,8 @@ export function SetAdminPassword(arg1:string,arg2:string):Promise<void>;
 
 export function SetDefaultClass(arg1:number):Promise<void>;
 
+export function UndoScore(arg1:number):Promise<void>;
+
 export function UpdateClass(arg1:number,arg2:string):Promise<void>;
 
 export function UpdateConfig(arg1:config.Config):Promise<void>;

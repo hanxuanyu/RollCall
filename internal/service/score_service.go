@@ -31,6 +31,17 @@ func (s *ScoreService) BatchAddScore(studentIDs []int64, delta int, reason strin
 	return nil
 }
 
+func (s *ScoreService) UndoScore(logID int64) error {
+	log, err := s.scoreRepo.GetByID(logID)
+	if err != nil {
+		return err
+	}
+	if err := s.studentRepo.UpdateScore(log.StudentID, -log.Delta); err != nil {
+		return err
+	}
+	return s.scoreRepo.Delete(logID)
+}
+
 func (s *ScoreService) GetLogsByStudent(studentID int64) ([]model.ScoreLog, error) {
 	return s.scoreRepo.ListByStudent(studentID)
 }

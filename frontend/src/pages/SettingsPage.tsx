@@ -80,6 +80,8 @@ export default function SettingsPage() {
     }
   }
 
+  const modeLabel: Record<string, string> = { fair: '公平模式（推荐）', random: '纯随机', weighted: '积分权重' }
+
   if (!form) return null
 
   return (
@@ -102,7 +104,7 @@ export default function SettingsPage() {
               onValueChange={(v) => v && setForm({ ...form, random: { ...form.random, mode: v } })}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{modeLabel[form.random.mode] ?? form.random.mode}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="fair">公平模式（推荐）</SelectItem>
@@ -177,17 +179,6 @@ export default function SettingsPage() {
               })}
             />
             <p className="text-xs text-muted-foreground">点名动画持续时间，默认 5 秒</p>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>积分权重</Label>
-              <p className="text-xs text-muted-foreground">点名时根据积分调整概率</p>
-            </div>
-            <Switch
-              checked={form.random.weightByScore}
-              onCheckedChange={(v) => setForm({ ...form, random: { ...form.random, weightByScore: v } })}
-            />
           </div>
         </CardContent>
       </Card>

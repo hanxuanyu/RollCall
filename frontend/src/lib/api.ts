@@ -56,6 +56,7 @@ export const scoreApi = isWails ? {
   batchAdd: (ids: number[], delta: number, reason: string) => App.BatchAddScore(ids, delta, reason),
   getLogs: (studentID: number) => App.GetScoreLogs(studentID),
   getLogsByClass: (classID: number) => App.GetScoreLogsByClass(classID),
+  undo: (logID: number) => App.UndoScore(logID),
 } : scoreApiHttp
 
 export const configApi = isWails ? {

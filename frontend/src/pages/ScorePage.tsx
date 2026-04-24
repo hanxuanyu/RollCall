@@ -4,7 +4,7 @@ import { scoreApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import type { ScoreLog } from '@/types'
-import { Plus, Minus, History, ArrowUpDown } from 'lucide-react'
+import { Plus, Minus, History, ArrowUpDown, Undo2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -88,6 +88,17 @@ export default function ScorePage() {
       setReason('')
     } catch (e: any) {
       toast.error(e?.message || '操作失败')
+    }
+  }
+
+  const handleUndo = async (logId: number) => {
+    try {
+      await scoreApi.undo(logId)
+      if (currentClass) await loadStudents(currentClass.id)
+      await loadLogs()
+      toast.success('已撤销')
+    } catch (e: any) {
+      toast.error(e?.message || '撤销失败')
     }
   }
 
@@ -215,6 +226,7 @@ export default function ScorePage() {
                     <TableHead>变动</TableHead>
                     <TableHead>原因</TableHead>
                     <TableHead>时间</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -228,6 +240,11 @@ export default function ScorePage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{log.reason || '-'}</TableCell>
                       <TableCell className="text-muted-foreground text-xs">{log.created_at}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleUndo(log.id)}>
+                          <Undo2 className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

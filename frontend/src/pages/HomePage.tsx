@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/store/appStore'
-import { rollcallApi, scoreApi } from '@/lib/api'
+import { rollcallApi, scoreApi, configApi } from '@/lib/api'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import type { Student } from '@/types'
@@ -15,18 +15,21 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Dices, Users, Settings, Plus, Minus } from 'lucide-react'
+import { Dices, Users, LayoutDashboard, Plus, Minus, Undo2 } from 'lucide-react'
+import { adminApi } from '@/lib/api'
+import { PasswordDialog } from '@/components/layout/PasswordDialog'
 
 export default function HomePage() {
   const navigate = useNavigate()
   const { classes, currentClass, setCurrentClass, students, config,
-    setAdminAuthenticated, loadStudents } = useAppStore()
+    setAdminAuthenticated, loadStudents, loadConfig } = useAppStore()
   const [count, setCount] = useState('1')
   const [rolling, setRolling] = useState(false)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [result, setResult] = useState<Student[]>([])
   const [showResult, setShowResult] = useState(false)
   const [scoreDelta, setScoreDelta] = useState(1)
+  const [showPassword, setShowPassword] = useState(false)
   const animViewRef = useRef<AnimationViewHandle>(null)
 
   const activeStudents = students.filter((s) => s.status === 'active')
@@ -95,7 +98,21 @@ export default function HomePage() {
       await scoreApi.add(studentId, delta, delta > 0 ? '课堂加分' : '课堂扣分')
       setResult((prev) => prev.map((s) => s.id === studentId ? { ...s, score: s.score + delta } : s))
       if (currentClass) loadStudents(currentClass.id)
-      toast.success(`为 ${student?.name ?? '学生'} ${delta > 0 ? '增加' : '减少'} ${Math.abs(delta)} 积分`)
+      const logs = await scoreApi.getLogs(studentId)
+      const lastLog = logs?.[0]
+      toast.success(`为 ${student?.name ?? '学生'} ${delta > 0 ? '增加' : '减少'} ${Math.abs(delta)} 积分`, {
+        action: lastLog ? {
+          label: '撤销',
+          onClick: async () => {
+            try {
+              await scoreApi.undo(lastLog.id)
+              setResult((prev) => prev.map((s) => s.id === studentId ? { ...s, score: s.score - delta } : s))
+              if (currentClass) loadStudents(currentClass.id)
+              toast.success('已撤销')
+            } catch { toast.error('撤销失败') }
+          },
+        } : undefined,
+      })
     } catch (e: any) { toast.error(e?.message || '操作失败') }
   }
 
@@ -105,7 +122,22 @@ export default function HomePage() {
       await scoreApi.batchAdd(result.map((s) => s.id), delta, delta > 0 ? '课堂批量加分' : '课堂批量扣分')
       setResult((prev) => prev.map((s) => ({ ...s, score: s.score + delta })))
       if (currentClass) loadStudents(currentClass.id)
-      toast.success(`为 ${result.length} 位同学${delta > 0 ? '增加' : '减少'} ${Math.abs(delta)} 积分`)
+      const ids = result.map((s) => s.id)
+      const allLogs = await Promise.all(ids.map((id) => scoreApi.getLogs(id)))
+      const logIds = allLogs.map((logs) => logs?.[0]?.id).filter(Boolean) as number[]
+      toast.success(`为 ${result.length} 位同学${delta > 0 ? '增加' : '减少'} ${Math.abs(delta)} 积分`, {
+        action: logIds.length > 0 ? {
+          label: '撤销',
+          onClick: async () => {
+            try {
+              await Promise.all(logIds.map((id) => scoreApi.undo(id)))
+              setResult((prev) => prev.map((s) => ({ ...s, score: s.score - delta })))
+              if (currentClass) loadStudents(currentClass.id)
+              toast.success('已撤销')
+            } catch { toast.error('撤销失败') }
+          },
+        } : undefined,
+      })
     } catch (e: any) { toast.error(e?.message || '操作失败') }
   }
 
@@ -117,9 +149,29 @@ export default function HomePage() {
     animViewRef.current?.engine()?.reset()
   }
 
-  const handleAdminClick = () => {
-    setAdminAuthenticated(false)
-    navigate('/admin/classes')
+  const handleAdminClick = async () => {
+    try {
+      const has = await adminApi.hasPassword()
+      if (has) {
+        setShowPassword(true)
+      } else {
+        setAdminAuthenticated(true)
+        navigate('/admin/classes')
+      }
+    } catch {
+      navigate('/admin/classes')
+    }
+  }
+
+  const handleModeChange = async (mode: string) => {
+    if (!config) return
+    try {
+      const newConfig = { ...config, random: { ...config.random, mode } }
+      await configApi.update(newConfig)
+      await loadConfig()
+    } catch (e: any) {
+      toast.error(e?.message || '切换模式失败')
+    }
   }
 
   const modeLabel: Record<string, string> = { fair: '公平模式', random: '纯随机', weighted: '积分权重' }
@@ -147,11 +199,18 @@ export default function HomePage() {
             <SelectContent>{classes.map((c) => (<SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>))}</SelectContent>
           </Select>
           <Badge variant="outline" className="border-white/20 text-white/80">
-            <Users className="mr-1 h-3 w-3" />{activeStudents.length} 人
+            <Users className="mr-1 h-3 w-3" />总人数：{activeStudents.length}
           </Badge>
-          <Badge className="bg-white/10 text-white/80 hover:bg-white/15">
-            {modeLabel[config?.random.mode ?? 'fair'] ?? '公平模式'}
-          </Badge>
+          <Select value={config?.random.mode ?? 'fair'} onValueChange={(v) => v && handleModeChange(v)}>
+            <SelectTrigger className="w-28 h-8 text-sm bg-white/10 border-white/20 text-white">
+              <SelectValue>{modeLabel[config?.random.mode ?? 'fair'] ?? '公平模式'}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fair">公平模式</SelectItem>
+              <SelectItem value="random">纯随机</SelectItem>
+              <SelectItem value="weighted">积分权重</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-white/60">抽取人数：</span>
@@ -162,6 +221,11 @@ export default function HomePage() {
           <Button disabled={rolling || activeStudents.length === 0} onClick={handleStart}
             className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/25 transition-all duration-300 hover:shadow-indigo-500/40 hover:scale-105">
             <Dices className="mr-2 h-4 w-4" />{rolling ? '抽取中...' : '开始点名'}
+          </Button>
+          <Button variant="ghost" size="icon"
+            className="h-8 w-8 text-white/60 hover:text-white hover:bg-white/10"
+            onClick={handleAdminClick}>
+            <LayoutDashboard className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -177,11 +241,6 @@ export default function HomePage() {
         ) : (
           <div className="flex items-center justify-center h-full text-white/40">暂无学生，请先添加学生数据</div>
         )}
-        <Button variant="ghost" size="icon"
-          className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white backdrop-blur transition-all duration-300 hover:scale-110"
-          onClick={handleAdminClick}>
-          <Settings className="h-4 w-4" />
-        </Button>
       </div>
 
       <Dialog open={showResult} onOpenChange={(v) => { if (!v) handleCloseResult() }} disablePointerDismissal>
@@ -229,6 +288,13 @@ export default function HomePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PasswordDialog
+        open={showPassword}
+        onClose={() => setShowPassword(false)}
+        onSuccess={() => { setShowPassword(false); setAdminAuthenticated(true); navigate('/admin/classes') }}
+        onVerify={adminApi.verify}
+      />
     </div>
   )
 }

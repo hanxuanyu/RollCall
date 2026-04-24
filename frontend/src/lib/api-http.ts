@@ -97,6 +97,8 @@ export const scoreApiHttp = {
     request<any[]>('GET', `/scores/student/${studentID}`),
   getLogsByClass: (classID: number) =>
     request<any[]>('GET', `/scores/class/${classID}`),
+  undo: (logID: number) =>
+    request<any>('DELETE', `/scores/${logID}`),
 }
 
 export const configApiHttp = {

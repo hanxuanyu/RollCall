@@ -17,3 +17,7 @@ func (a *App) GetScoreLogs(studentID int64) ([]model.ScoreLog, error) {
 func (a *App) GetScoreLogsByClass(classID int64) ([]model.ScoreLog, error) {
 	return a.scoreSvc.GetLogsByClass(classID)
 }
+
+func (a *App) UndoScore(logID int64) error {
+	return a.scoreSvc.UndoScore(logID)
+}

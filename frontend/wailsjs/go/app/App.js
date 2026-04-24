@@ -106,6 +106,10 @@ export function SetDefaultClass(arg1) {
   return window['go']['app']['App']['SetDefaultClass'](arg1);
 }
 
+export function UndoScore(arg1) {
+  return window['go']['app']['App']['UndoScore'](arg1);
+}
+
 export function UpdateClass(arg1, arg2) {
   return window['go']['app']['App']['UpdateClass'](arg1, arg2);
 }
