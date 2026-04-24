@@ -5,7 +5,7 @@ import {
   scoreApiHttp, configApiHttp, adminApiHttp,
 } from './api-http'
 
-const isWails = !!(window as any).go
+export const isWails = !!(window as any).go
 
 export const classApi = isWails ? {
   list: () => App.GetClasses(),
@@ -69,3 +69,9 @@ export const adminApi = isWails ? {
   verify: (password: string) => App.VerifyAdminPassword(password),
   setPassword: (oldPassword: string, newPassword: string) => App.SetAdminPassword(oldPassword, newPassword),
 } : adminApiHttp
+
+export const versionApi = isWails ? {
+  get: () => App.GetVersion(),
+} : {
+  get: () => fetch('/api/version').then((r) => r.json()) as Promise<{ version: string; commitId: string }>,
+}

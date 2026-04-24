@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
-import { studentApi } from '@/lib/api'
+import { studentApi, isWails } from '@/lib/api'
 import type { Student } from '@/types'
 import { Trash2, Plus, AlertTriangle, Upload, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -70,9 +70,7 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
 
   const handleFile = useCallback(async (file: File) => {
     try {
-      const data = await (studentApi as any).previewImportFile
-        ? (studentApi as any).previewImportFile(file)
-        : studentApi.previewImport()
+      const data = await (studentApi as any).previewImportFile(file)
       handleFileData(data)
     } catch (e: any) {
       toast.error(e?.message || '解析文件失败')
@@ -91,6 +89,10 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
+    if (isWails) {
+      handleSelectFile()
+      return
+    }
     const file = e.dataTransfer.files?.[0]
     if (!file) return
     const ext = file.name.toLowerCase().split('.').pop()
@@ -116,6 +118,14 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
     if (file) handleFile(file)
     e.target.value = ''
   }, [handleFile])
+
+  const handleZoneClick = useCallback(() => {
+    if (isWails) {
+      handleSelectFile()
+    } else {
+      fileInputRef.current?.click()
+    }
+  }, [])
 
   const handleParseText = async () => {
     const text = csvText.trim()
@@ -252,7 +262,7 @@ export function ImportDialog({ classID, open, existingStudents, onClose, onSucce
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleZoneClick}
               >
                 <Upload className={`h-10 w-10 ${dragging ? 'text-primary' : 'text-muted-foreground/50'}`} />
                 <div className="text-center">

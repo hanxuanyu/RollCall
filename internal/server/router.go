@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"RollCall/internal/service"
+	"RollCall/internal/version"
 )
 
 func NewRouter(
@@ -63,6 +64,14 @@ func NewRouter(
 	mux.HandleFunc("GET /api/admin/has-password", configAPI.HasPassword)
 	mux.HandleFunc("POST /api/admin/verify", configAPI.VerifyPassword)
 	mux.HandleFunc("POST /api/admin/set-password", configAPI.SetPassword)
+
+	// Version
+	mux.HandleFunc("GET /api/version", func(w http.ResponseWriter, r *http.Request) {
+		jsonOK(w, map[string]string{
+			"version":  version.Version,
+			"commitId": version.CommitID,
+		})
+	})
 
 	// Static files — SPA fallback
 	mux.Handle("/", spaHandler(assets))

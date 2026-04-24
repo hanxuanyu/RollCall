@@ -40,6 +40,8 @@ export function GetScoreLogsByClass(arg1:number):Promise<Array<model.ScoreLog>>;
 
 export function GetStudents(arg1:number):Promise<Array<model.Student>>;
 
+export function GetVersion():Promise<Record<string, string>>;
+
 export function GetWeightInfo(arg1:number):Promise<Array<service.StudentWeightInfo>>;
 
 export function HasAdminPassword():Promise<boolean>;

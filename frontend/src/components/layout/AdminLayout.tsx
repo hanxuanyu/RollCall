@@ -1,10 +1,14 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
-import { GraduationCap, Users, Trophy, Settings, ArrowLeft } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { GraduationCap, Users, Trophy, Settings, ArrowLeft, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
+import { versionApi } from '@/lib/api'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -20,12 +24,24 @@ export function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { classes, currentClass, setCurrentClass, adminAuthenticated, setAdminAuthenticated } = useAppStore()
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [versionInfo, setVersionInfo] = useState<{ version: string; commitId: string } | null>(null)
 
   useEffect(() => {
     if (!adminAuthenticated) {
       navigate('/')
     }
   }, [adminAuthenticated, navigate])
+
+  const handleAbout = async () => {
+    try {
+      const info = await versionApi.get() as { version: string; commitId: string }
+      setVersionInfo(info)
+    } catch {
+      setVersionInfo({ version: 'unknown', commitId: 'unknown' })
+    }
+    setAboutOpen(true)
+  }
 
   if (!adminAuthenticated) return null
 
@@ -82,10 +98,15 @@ export function AdminLayout() {
           ))}
         </nav>
 
-        <Button variant="ghost" size="sm" onClick={() => { setAdminAuthenticated(false); navigate('/') }}>
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          返回点名
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleAbout}>
+            <Info className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { setAdminAuthenticated(false); navigate('/') }}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            返回点名
+          </Button>
+        </div>
       </header>
 
       <main className="flex-1 overflow-hidden">
@@ -102,6 +123,27 @@ export function AdminLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs">RC</div>
+              课堂点名
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">版本</span>
+              <span className="font-mono">{versionInfo?.version ?? '-'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Commit</span>
+              <span className="font-mono">{versionInfo?.commitId ?? '-'}</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

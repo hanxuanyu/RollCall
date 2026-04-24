@@ -58,7 +58,68 @@ func (s *StudentService) ParseCSV(filePath string) ([]model.Student, error) {
 }
 
 func (s *StudentService) ParseCSVFromText(text string) ([]model.Student, error) {
-	return s.parseCSVReader(csv.NewReader(strings.NewReader(text)))
+	delimiter := detectDelimiter(text)
+	reader := csv.NewReader(strings.NewReader(text))
+	reader.Comma = delimiter
+	reader.LazyQuotes = true
+	return s.parseCSVReader(reader)
+}
+
+func detectDelimiter(text string) rune {
+	candidates := []rune{',', '\t', ';', '|'}
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	if len(lines) == 0 {
+		return ','
+	}
+
+	// Filter out empty lines
+	var dataLines []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			dataLines = append(dataLines, line)
+		}
+	}
+	if len(dataLines) == 0 {
+		return ','
+	}
+
+	bestDelim := ','
+	bestScore := -1.0
+
+	for _, delim := range candidates {
+		counts := make([]int, len(dataLines))
+		for i, line := range dataLines {
+			counts[i] = strings.Count(line, string(delim))
+		}
+
+		// Skip if delimiter never appears
+		if counts[0] == 0 {
+			continue
+		}
+
+		// Score: consistency (low variance) * count
+		// All lines should have the same number of delimiters
+		consistent := true
+		for _, c := range counts {
+			if c != counts[0] {
+				consistent = false
+				break
+			}
+		}
+
+		score := float64(counts[0])
+		if consistent {
+			score *= 10 // strongly prefer consistent delimiters
+		}
+
+		if score > bestScore {
+			bestScore = score
+			bestDelim = delim
+		}
+	}
+
+	return bestDelim
 }
 
 func (s *StudentService) parseCSVReader(reader *csv.Reader) ([]model.Student, error) {

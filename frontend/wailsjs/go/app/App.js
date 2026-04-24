@@ -74,6 +74,10 @@ export function GetStudents(arg1) {
   return window['go']['app']['App']['GetStudents'](arg1);
 }
 
+export function GetVersion() {
+  return window['go']['app']['App']['GetVersion']();
+}
+
 export function GetWeightInfo(arg1) {
   return window['go']['app']['App']['GetWeightInfo'](arg1);
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"RollCall/internal/service"
+	"RollCall/internal/version"
 )
 
 type App struct {
@@ -30,4 +31,11 @@ func NewApp(
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+func (a *App) GetVersion() map[string]string {
+	return map[string]string{
+		"version":  version.Version,
+		"commitId": version.CommitID,
+	}
 }
