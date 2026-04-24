@@ -9,8 +9,14 @@ LDFLAGS := -X RollCall/internal/version.Version=$(VERSION) -X RollCall/internal/
 build-desktop:
 	wails build -ldflags "$(LDFLAGS)"
 
+ifeq ($(OS),Windows_NT)
+  SERVER_EXT := .exe
+else
+  SERVER_EXT :=
+endif
+
 build-server: build-frontend
-	CGO_ENABLED=0 go build -tags server -ldflags "$(LDFLAGS)" -o build/bin/RollCallServer .
+	CGO_ENABLED=0 go build -tags server -ldflags "$(LDFLAGS)" -o build/bin/RollCallServer$(SERVER_EXT) .
 
 build-frontend:
 	cd frontend && npm run build
