@@ -85,6 +85,9 @@ func Get() *Config {
 
 func Save(cfg *Config) error {
 	mu.Lock()
+	if cfg.App.AdminPasswordHash == "" && current != nil {
+		cfg.App.AdminPasswordHash = current.App.AdminPasswordHash
+	}
 	current = cfg
 	mu.Unlock()
 	data, err := yaml.Marshal(cfg)
