@@ -16,7 +16,7 @@ else
 endif
 
 build-server: build-frontend
-	CGO_ENABLED=0 go build -tags server -ldflags "$(LDFLAGS)" -o build/bin/RollCallServer$(SERVER_EXT) .
+	CGO_ENABLED=0 go build -tags server -ldflags "$(LDFLAGS)" -o build/bin/rollcall-server$(SERVER_EXT) .
 
 build-frontend:
 	cd frontend && npm run build
